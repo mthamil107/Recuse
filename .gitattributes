@@ -4,6 +4,10 @@
 *.snippet      text eol=lf
 banner.txt     text eol=lf
 *.md           text eol=lf
+*.go           text eol=lf
+go.mod         text eol=lf
+go.sum         text eol=lf
+*.service      text eol=lf
 
 # Treat the demo recording as binary (never line-ending-converted or diffed).
 *.gif          binary

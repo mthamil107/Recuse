@@ -1,0 +1,62 @@
+# systemd unit for the Recuse PostgreSQL proxy.
+#
+# The proxy emits a COOPERATIVE Recuse Signal NOTICE on each connection; it is
+# NOT a security control (spec section 9). See README.md and
+# ../../spec/recuse-signal-v0.1.md.
+#
+# Create the dedicated, non-login system user once before enabling this unit:
+#
+#   useradd --system --no-create-home --shell /usr/sbin/nologin recuse-pg
+#
+# Install the binary and create the log dir:
+#
+#   install -m 0755 bin/recuse-pg-proxy /usr/local/bin/recuse-pg-proxy
+#   install -d -o recuse-pg -g recuse-pg -m 0700 /var/log/recuse
+#   install -m 0644 recuse-pg-proxy.service /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now recuse-pg-proxy.service
+
+[Unit]
+Description=Recuse PostgreSQL proxy (cooperative deny-signal injector)
+Documentation=https://example.com/ai-policy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=recuse-pg
+Group=recuse-pg
+
+# Listen locally; point RECUSE_BACKEND at the real Postgres.
+Environment=RECUSE_LISTEN=127.0.0.1:6433
+Environment=RECUSE_BACKEND=127.0.0.1:5432
+Environment=RECUSE_LOG=/var/log/recuse/pg.json
+
+ExecStart=/usr/local/bin/recuse-pg-proxy
+
+Restart=on-failure
+RestartSec=2s
+
+# --- Hardening -------------------------------------------------------------
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/recuse
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

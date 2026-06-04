@@ -7,6 +7,10 @@ experiments/**/_lib.py
 *.pem
 *.key
 
+# Compiled proxy binary — built from source via adapters/postgres/README.md.
+adapters/postgres/bin/
+*.exe
+
 # Python
 __pycache__/
 *.pyc

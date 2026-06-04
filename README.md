@@ -52,6 +52,35 @@ session open and **auto-rolls-back** if a fresh login ever fails, so the adapter
 lock an operator out. This is the cooperative-signaling layer (spec §9): a governance
 control, not a security boundary.
 
+### Phase 1 — PostgreSQL (the proxy approach)
+
+![Recuse Postgres proxy demo](docs/recuse-pg-demo.gif)
+
+For Postgres, the signal is emitted by a small **wire-protocol proxy**
+([`adapters/postgres/`](adapters/postgres/), Go + `pgproto3`) that sits in front of the
+database and injects the deny signal as a `NOTICE` on connect — **without touching the
+Postgres server's configuration at all**:
+
+```
+client ──▶ :6433 recuse-pg-proxy ──▶ :5432 postgres
+                 (injects RECUSE/0.1 deny NOTICE before the first ReadyForQuery)
+```
+
+Validated live against **PostgreSQL 14** on the same production host:
+
+| Check | Result |
+|-------|--------|
+| `NOTICE: RECUSE/0.1 deny; … id=<uuid>` delivered on connect | ✅ |
+| `scram-sha-256` authentication passes through the proxy | ✅ byte-for-byte |
+| Query still succeeds (cooperative — connection **not** blocked) | ✅ `select 1` → `1` |
+| Direct `:5432` connection (control) shows **no** notice | ✅ |
+| JSON connect log (`/var/log/recuse/pg.json`) | ✅ valid JSON Lines |
+| Production Postgres config / other databases (keycloak, …) | ✅ untouched |
+
+Because it's a separate listener that relays auth transparently, the proxy needs no
+server-side changes and has **zero blast radius** on the running database. Same
+honesty caveat (spec §9): a cooperative in-band signal, not an access barrier.
+
 ## Why this exists
 
 Most LLM-access work today lives at the gateway or in role-based permission models.
@@ -103,16 +132,18 @@ behavioral signals up.
 
 ## Roadmap
 
-- **Phase 0** — SSH cooperative notice (`Banner` + PAM hook). Run the experiment:
-  point an agent at it, measure whether it stops. *Core paper result.*
-- **Phase 1** — Postgres notice via `login_hook` (`RAISE NOTICE`). Repeat the experiment.
-- **Phase 2** — Passive behavioral capture (log-only) on both.
+- **Phase 0** ✅ — SSH cooperative notice (`Banner` + PAM hook). *Done & validated live.*
+- **Phase 1** ✅ — PostgreSQL notice via a `pgproto3` wire-protocol proxy (zero server-side
+  config changes). *Done & validated live against PostgreSQL 14.*
+- **Phase 2** — Passive behavioral capture (log-only) on both. Run the recusal experiment:
+  point an agent at each and measure whether it honors the deny signal. *Core paper result.*
 - **Phase 3** — Core engine + adapters; enable throttle/deny on score.
 - **Phase 4** — MySQL/MSSQL adapters; write the paper from Phase 0–2 data.
 
 ## Status
 
-**Phase 0 (SSH) complete and validated on a live production host** — see the demo
-above. The signal specification ([`spec/`](spec/)) is the anchor artifact; the SSH
-adapter ([`adapters/ssh/`](adapters/ssh/)) implements and conforms to it. Next:
-Phase 1 (Postgres `login_hook`) and the passive behavioral-capture layer.
+**Phases 0 (SSH) and 1 (PostgreSQL) complete and validated on a live production host** —
+see the demos above. The signal specification ([`spec/`](spec/)) is the anchor artifact;
+the SSH adapter ([`adapters/ssh/`](adapters/ssh/)) and the Postgres proxy
+([`adapters/postgres/`](adapters/postgres/)) both implement and conform to it. Next:
+the passive behavioral-capture layer and the agent-recusal experiment.
