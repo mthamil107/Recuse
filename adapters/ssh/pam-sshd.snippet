@@ -1,0 +1,27 @@
+# Recuse SSH adapter — PAM hook line for /etc/pam.d/sshd
+#
+# Append the single "session" line below to /etc/pam.d/sshd. It must go in the
+# SESSION block, AFTER the standard session modules (e.g. after the lines that
+# include common-session and after pam_loginuid / pam_motd), so the hook runs once
+# per established session. pam_exec invokes the Recuse hook, which generates a
+# unique session id, re-emits the notice (sentinel line WITH id) to the connecting
+# client, and appends one JSON object to /var/log/recuse/ssh.json.
+#
+# Placement example within /etc/pam.d/sshd (session block):
+#
+#     # Standard Un*x session setup and teardown.
+#     session    required     pam_loginuid.so
+#     @include common-session
+#     session    optional     pam_motd.so motd=/run/motd.dynamic
+#     session    optional     pam_mail.so standard noenv
+#     # ... other existing session modules ...
+#     # >>> Recuse hook goes HERE, after the standard session modules: <<<
+#     session    optional     pam_exec.so quiet stdout /usr/local/bin/recuse-pam-hook.sh
+#
+# Notes:
+#   - "optional" so a hook failure never blocks a legitimate login (cooperative
+#     signal, not a security control; see recuse-signal-v0.1 §9).
+#   - "stdout" lets the hook write the re-emitted notice to the session's output.
+#   - "quiet" suppresses PAM logging of the module's own exit status.
+
+session    optional     pam_exec.so quiet stdout /usr/local/bin/recuse-pam-hook.sh

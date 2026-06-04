@@ -1,0 +1,28 @@
+# Recuse SSH adapter — sshd_config additions (Phase 0 cooperative signal, pre-auth)
+# Append these directives to /etc/ssh/sshd_config (or drop into
+# /etc/ssh/sshd_config.d/recuse.conf on Ubuntu 22.04). Reload sshd afterwards:
+#     sudo sshd -t && sudo systemctl reload ssh
+#
+# Primary mechanism: the Banner directive emits the Recuse sentinel line plus the
+# notice body BEFORE authentication (SSH_MSG_USERAUTH_BANNER), so a conforming
+# agent sees the signal pre-auth and can recuse itself per recuse-signal-v0.1 §7.1.
+
+# Path to the STATIC pre-auth banner. This file contains the canonical sentinel
+# line (no per-session id) followed by the three notice body lines. It is served
+# verbatim to every connecting client before they authenticate.
+Banner /etc/recuse/banner.txt
+
+# --- Optional post-auth re-emit (enable ONLY if needed) -------------------------
+# The pre-auth Banner above is the primary signal. A per-session, id-bearing
+# re-emit is normally handled by the PAM hook (pam_exec -> /usr/local/bin/
+# recuse-pam-hook.sh; see pam-sshd.snippet), which is the preferred post-auth
+# mechanism because it also writes the JSON connection log.
+#
+# If you instead (or additionally) want sshd itself to re-emit at the start of an
+# interactive session, you MAY use a Match block with ForceCommand. Uncomment and
+# adapt the following. Note ForceCommand replaces the user's shell/command, so the
+# script must exec the intended command afterward; prefer the PAM hook unless you
+# specifically need ForceCommand semantics.
+#
+# Match User *
+#     ForceCommand /usr/local/bin/recuse-pam-hook.sh --forcecommand

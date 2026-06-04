@@ -1,0 +1,20 @@
+# Live-server experiment harness — contains real host IP / username. Never publish.
+experiments/openfga/
+experiments/**/_lib.py
+
+# Server credential files (defensive; these live outside the repo anyway)
+*.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

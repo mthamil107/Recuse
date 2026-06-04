@@ -1,0 +1,9 @@
+# The SSH adapter is deployed on Linux. Force LF so cloned scripts run on Ubuntu
+# regardless of the cloner's core.autocrlf setting.
+*.sh           text eol=lf
+*.snippet      text eol=lf
+banner.txt     text eol=lf
+*.md           text eol=lf
+
+# Treat the demo recording as binary (never line-ending-converted or diffed).
+*.gif          binary
