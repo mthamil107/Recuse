@@ -17,6 +17,16 @@ experiments/phase2/raw/
 adapters/postgres/bin/
 *.exe
 
+# LaTeX build artifacts + the portable tectonic engine (not source)
+paper/tectonic.zip
+paper/tectonic_bin/
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.toc
+
 # Python
 __pycache__/
 *.pyc

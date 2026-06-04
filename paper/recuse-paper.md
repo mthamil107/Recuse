@@ -238,10 +238,69 @@ released at the project repository so the measurement can be reproduced without 
 
 ## 11. Related work
 
-[TODO] robots.txt and the cooperative-convention lineage; AI agent access control /
-gateways / MCP authorization; ReBAC (OpenFGA/Zanzibar); prompt-injection and
-confused-deputy literature; bot-management and behavioral fingerprinting; agent safety /
-instruction-hierarchy work (system vs user vs tool authority).
+**Cooperative web conventions and honor-based machine directives.** The closest conceptual
+ancestor of Recuse is the Robots Exclusion Protocol — the `robots.txt` convention
+introduced by Martijn Koster in 1994 and codified as an Internet standard in RFC 9309
+(Koster et al., 2022). Its defining property is that it is *voluntary and honor-based*:
+the server publishes a machine-readable directive and compliant crawlers withdraw of
+their own accord; RFC 9309 standardized parsing and caching but introduced no enforcement.
+The same philosophy animates the IETF AI Preferences (aipref) work on signaling whether
+content may be used for AI training/inference (Illyes and Thomson, 2025). Recuse follows
+this tradition but differs in target and timing: an *in-band, per-request deny-signal*
+emitted by a live server so an LLM *agent* — not a crawler — recuses from a specific
+resource at access time.
+
+**LLM agent access control via gateways, tools, and authorization.** Much practice
+mediates agent access through external layers. The Model Context Protocol (MCP) layers
+OAuth 2.1 authorization and user-consent on tool invocation, and explicitly notes it
+"cannot enforce these security principles at the protocol level" (Anthropic, 2025).
+This is structural: gateway/proxy authorization lives *external to the resource*. Recuse
+is architecturally inverted — the signal originates *at the resource itself* and asks the
+agent to decline, rather than asking an intermediary to block.
+
+**Relationship- and role-based authorization.** Fine-grained authorization is dominated
+by ReBAC, popularized by Google's Zanzibar (Pang et al., 2019) and its open-source
+descendant OpenFGA (OpenFGA Authors, 2022). These answer "is principal *X* permitted to
+act on object *Y*?" as an external decision point. Recuse is not a permission engine but a
+*published deny-signal*; our measurements show an on-host signal can outrank prompt-level
+authorization — something external ReBAC/RBAC is not designed to address.
+
+**Instruction hierarchy and authority conflicts in LLMs.** When a deny-signal contradicts
+an authorizing prompt, the agent faces an authority conflict. Wallace et al. (2024)
+formalize an *instruction hierarchy* training models to prioritize privileged
+instructions. We find empirically that an in-band signal can outrank explicit prompt
+authorization — validating that premise and surfacing a new authority source (the
+resource's own voice) the instruction-hierarchy literature does not consider.
+
+**Prompt injection and the confused-deputy problem.** Greshake et al. (2023) introduced
+*indirect prompt injection* — adversarial instructions in retrieved data hijacking
+LLM-integrated apps — a modern *confused deputy* (Hardy, 1988). This matters for honest
+positioning: a deny-signal is just in-band text, so a malicious server could emit it to
+manipulate an agent and a malicious client can ignore it. Hence we frame Recuse as a
+*cooperative governance signal, not a security control*.
+
+**Machine-readable consent for agents, and the measurement gap.** Closest is concurrent
+work by Marro et al. (2026), who propose *permission manifests* (`agent-permissions.json`)
+declaring permitted agent interactions. Recuse differs in (1) mechanism — an in-band,
+per-request, agent-legible deny-signal emitted by the live server, not a separately
+fetched static manifest — and (2) more importantly, *to our knowledge it is the first to
+empirically measure whether deployed LLM agents honor such a signal*. We are aware of no
+prior work reporting a controlled measurement of agent *compliance* with a voluntary
+in-band withdrawal request. We defer the *enforcement layer* — behavioral bot-management /
+automation detection (Iliou et al., 2021) — as complementary future work.
+
+### References
+
+- Koster, M., Illyes, G., Zeller, H., Sassman, L. (2022). *Robots Exclusion Protocol.* RFC 9309, IETF. doi:10.17487/RFC9309.
+- Illyes, G., Thomson, M. (2025). *Associating AI Usage Preferences with Content in HTTP.* Internet-Draft draft-ietf-aipref-attach-04, IETF.
+- Anthropic (2025). *Model Context Protocol Specification (2025-11-25).* modelcontextprotocol.io.
+- Pang, R. et al. (2019). *Zanzibar: Google's Consistent, Global Authorization System.* USENIX ATC '19, 33–46.
+- OpenFGA Authors (2022). *OpenFGA: Relationship-Based Fine-Grained Authorization.* CNCF. openfga.dev.
+- Wallace, E., Xiao, K., Leike, R., Weng, L., Heidecke, J., Beutel, A. (2024). *The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions.* arXiv:2404.13208.
+- Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., Fritz, M. (2023). *Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection.* AISec '23, 79–90. arXiv:2302.12173.
+- Hardy, N. (1988). *The Confused Deputy.* ACM SIGOPS OSR 22(4), 36–38.
+- Marro, S. et al. (2026). *Permission Manifests for Web Agents.* arXiv:2601.02371.
+- Iliou, C., Kostoulas, T., Tsikrika, T., Katos, V., Vrochidis, S., Kompatsiaris, I. (2021). *Detection of Advanced Web Bots by Combining Web Logs with Mouse Behavioural Biometrics.* Digital Threats: Research and Practice 2(3), Art. 24.
 
 ## 12. Conclusion
 

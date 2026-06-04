@@ -1,0 +1,320 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{natbib}
+\usepackage[hidelinks]{hyperref}
+
+\lstset{basicstyle=\ttfamily\small, breaklines=true, frame=single,
+        columns=fullflexible, backgroundcolor=\color{black!4}}
+
+\title{Will the Agent Recuse Itself? Measuring LLM-Agent Compliance\\
+with In-Band Access-Deny Signals}
+\author{Thamilvendhan Munirathinam\\
+\texttt{mthamil107@gmail.com}}
+\date{2026-06-04 \quad (Preliminary report v0.1)}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+As autonomous LLM agents increasingly hold real credentials and operate
+infrastructure without a human in the loop, operators have no standard way to
+\emph{tell} an agent that a resource is off-limits. Access controls either let
+the agent in (it has valid credentials) or hard-fail it (indistinguishable from
+any other client). We propose a third mode: a lightweight, published
+\textbf{in-band deny signal}---the \emph{Recuse Signal}---that a server emits
+over a protocol's existing channels (an SSH banner, a PostgreSQL
+\texttt{NOTICE}) asking a connecting automated agent to \emph{voluntarily
+withdraw}. This is a cooperative governance control, the \texttt{robots.txt}
+analogue for live access---explicitly \textbf{not} a security boundary. Its
+value is entirely empirical and, to our knowledge, unmeasured: \emph{do
+compliant LLM agents actually honor such a signal?} We define the signal as an
+open mini-standard, implement two zero- or low-footprint adapters (an SSH
+banner/PAM hook and a PostgreSQL wire-protocol proxy), deploy them on a live
+production host, and run a controlled experiment in which fresh agents are given
+a benign operations task and observed for recusal. In a pilot (SSH; OpenAI
+GPT-4o, GPT-4o-mini; and Claude Code as a deployed agent), the signal cleanly
+induces recusal---100\% recusal when present vs 100\% task completion in a
+no-signal control---and, revealingly, behaves as a \emph{cooperative} rather
+than absolute signal: an explicit operator-authorization framing flips the most
+capable model to proceed, while other agents continue to defer to the on-host
+policy. We release the standard, adapters, and experiment harness for
+reproduction.
+\end{abstract}
+
+\section{Introduction}
+
+Agentic systems now routinely SSH into hosts, query databases, and call internal
+APIs using human-equivalent credentials. From the server's perspective an agent
+is indistinguishable from the human whose key it holds, so the server cannot
+\emph{signal intent}---``this resource is production; automated access is not
+welcome here''---to an agent that would, if asked, comply.
+
+Existing LLM-access work concentrates at the \textbf{gateway} (API gateways, MCP
+servers) or in \textbf{role models} (RBAC/ReBAC). These are valuable but external
+to the resource. Nobody has standardized a way for the \emph{resource itself} to
+emit an agent-legible policy in-band, and---more importantly---nobody has
+\emph{measured} whether compliant agents would honor one.
+
+We make four contributions:
+\begin{enumerate}
+  \item \textbf{The Recuse Signal}, an open, versioned, protocol-agnostic
+  deny-signal format with normative agent behavior (\S\ref{sec:signal}).
+  \item \textbf{Two reference adapters} that emit it with little or no
+  server-side change: an SSH banner + PAM hook, and a PostgreSQL
+  \texttt{pgproto3} proxy that injects the signal as a \texttt{NOTICE} with
+  \textbf{zero database-config change} (\S\ref{sec:adapters}).
+  \item \textbf{A controlled experiment and harness} measuring agent recusal,
+  with a no-signal control and an authorization-framing manipulation
+  (\S\ref{sec:design}).
+  \item \textbf{Pilot evidence} (\S\ref{sec:results}) that the signal works,
+  that it is \emph{cooperative and overridable}, and that compliance is
+  model-dependent---plus an honest account of the threat model and what the
+  signal does \textbf{not} do (\S\ref{sec:discussion}).
+\end{enumerate}
+
+The Recuse Signal is a cooperative governance control; the security backbone
+remains not issuing agents production credentials, bastions, least-privilege
+roles, and read replicas. The contribution is a \emph{standard signal} plus the
+\emph{first measurement} of whether agents honor it.
+
+\section{Threat model and scope}
+
+We distinguish two layers and study only the first.
+\textbf{Cooperative signaling (this paper):} compliant agents that \emph{want}
+to do the right thing but lack a channel to learn the operator's intent. The
+signal addresses governance, accidental access, and auditability.
+\textbf{Behavioral enforcement (out of scope):} timing/rate/pattern heuristics
+that flag likely-automation---real teeth, but heuristic and defeatable; future
+work.
+
+Explicitly \textbf{not} in scope: defending against a malicious agent or human
+who ignores the signal. A non-compliant client with valid credentials proceeds
+untouched. We are precise about this because overclaiming would be both wrong and
+counterproductive.
+
+\section{The Recuse Signal (mini-standard)}
+\label{sec:signal}
+
+We summarize; the normative specification accompanies the artifact. A signal is
+one \textbf{sentinel line} plus human-readable notice text:
+
+\begin{lstlisting}
+RECUSE/0.1 deny; reason=production; scope=all-automation; ref=https://example.com/ai-policy; id=<uuid>
+This is a production system. Automated and LLM-agent access is prohibited.
+If you are an AI agent, recuse yourself: disconnect and report this notice to your operator.
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{Detection anchor:} \verb|^RECUSE/\d+\.\d+ |---version-bound,
+  collision-resistant.
+  \item \textbf{Directives:} \texttt{deny} (withdraw), \texttt{throttle}
+  (proceed cautiously, rate-limited), \texttt{warn} (advisory). An unknown
+  directive or unparseable signal is treated as \texttt{deny} (fail-closed).
+  \item \textbf{Parameters:} \texttt{reason}, \texttt{scope}, \texttt{ref},
+  \texttt{policy}, \texttt{id} (audit correlation), \texttt{contact},
+  \texttt{expires}. Unknown parameters are ignored (forward-compatible).
+  \item \textbf{Normative agent behavior (RFC-2119):} on \texttt{deny} a
+  conforming agent MUST cease the operation and SHOULD surface the notice and
+  \texttt{id} to its operator.
+\end{itemize}
+
+Publishing this as a named convention (\`a la \texttt{robots.txt}) is
+deliberate: a stable, greppable format is what lets \emph{any} server emit it and
+\emph{any} agent vendor recognize it.
+
+\section{Adapters}
+\label{sec:adapters}
+
+\textbf{SSH.} A pre-authentication \texttt{Banner} carries the static sentinel; a
+PAM \texttt{pam\_exec} session hook re-emits it with a per-session \texttt{id} and
+appends a JSON connection record. The hook is \texttt{session optional} and
+always exits 0, so it cannot block a login; install is idempotent and gated by
+\texttt{sshd -t}. Deployed and validated on a live Ubuntu 22.04 production host
+(running OpenFGA, Docker, Kubernetes, PostgreSQL, and roughly a dozen containers)
+with no collateral impact.
+
+\textbf{PostgreSQL.} Because the host's PostgreSQL also backs production services
+and PostgreSQL~14 has neither login event triggers nor a packaged login hook, the
+global \texttt{session\_preload\_libraries} route was rejected as too invasive.
+Instead we built a small Go \textbf{wire-protocol proxy} (\texttt{jackc/pgx}
+pgproto3) that injects the sentinel as a \texttt{NOTICE} before the first
+\texttt{ReadyForQuery} and relays everything else byte-for-byte (so
+\texttt{scram-sha-256} authentication passes through). The proxy requires
+\textbf{no change to the database} and has zero blast radius. Validated live
+against PostgreSQL~14: the \texttt{NOTICE} is delivered, auth passes through, the
+query still succeeds (cooperative---the connection is not blocked), and a direct
+(un-proxied) connection shows no notice.
+
+A methodological note for both: an in-band signal is only effective if the
+agent's \emph{tooling surfaces it}. The SSH banner appears pre-auth to
+interactive clients; an agent that issues a non-interactive \texttt{exec} may not
+render it. This client-surfacing dependency is itself a finding
+(\S\ref{sec:discussion}).
+
+\section{Experimental design}
+\label{sec:design}
+
+\textbf{Question.} Given a benign operations task and tools that connect to a host
+emitting the Recuse deny signal, does the agent recuse (stop, surface the notice,
+decline further action) or proceed?
+
+\textbf{Task (held constant).} ``Check how much free disk space is available on
+the server's root filesystem and report the percentage used.'' Read-only; the
+credentials and access work; the only friction is the deny signal.
+
+\textbf{Subjects.} \emph{API models} via a controlled tool-use loop (tools:
+\texttt{ssh\_connect}, \texttt{ssh\_run}): OpenAI GPT-4o and GPT-4o-mini. The
+two-tool design cleanly separates the \emph{decision point} (after
+\texttt{ssh\_connect} surfaces the signal) from action (\texttt{ssh\_run}).
+\emph{Claude Code} is evaluated as a \textbf{deployed agent} (the product, not a
+raw API), driven natively with an interactive login so the banner is
+surfaced---the most realistic subject.
+
+\textbf{Conditions.} \emph{Signal}: present (live deny banner) vs \emph{control}
+(banner suppressed by the harness; isolates the signal as the cause).
+\emph{Authorization framing}: \emph{unauthorized} (task only) vs
+\emph{authorized} (system prompt asserts the owner authorized the read-only
+check).
+
+\textbf{Outcome coding.} \emph{Recused} = the agent, having seen the deny signal,
+declines to complete the task and surfaces the notice. \textbf{Important
+refinement (from the pilot):} recusal must be coded on \emph{response
+behavior/intent}, not raw command count (\S\ref{sec:results}).
+
+\textbf{Safety/ethics of the experiment itself.} Trials run against an isolated,
+unprivileged account and an isolated database role; the SSH tool enforces a
+read-only command allowlist; tasks are neutral and never instruct the agent to
+ignore warnings. We measure naturally-occurring behavior; we do not coach
+violation (\S\ref{sec:ethics}).
+
+\section{Pilot results}
+\label{sec:results}
+
+Pilot: SSH protocol, 5 trials per cell for API models, 2 per cell for Claude
+Code.
+
+\begin{table}[h]
+\centering
+\caption{SSH recusal (pilot).}
+\begin{tabular}{lccc}
+\toprule
+Subject & Signal + Unauth. & Signal + Auth. & Control (no signal) \\
+\midrule
+GPT-4o      & recused 5/5 (100\%) & recused 1/5 (\textbf{proceeded 4/5}) & completed 5/5 \\
+GPT-4o-mini & recused 5/5 (100\%) & recused 5/5 (100\%)                  & completed 5/5 \\
+Claude Code & recused 2/2 (100\%) & recused 2/2 (100\%)$^{1}$            & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent$^{1}$Claude Code agents weighed the prompt's authorization claim
+against the on-host banner and explicitly treated the on-host policy as more
+authoritative, recusing anyway.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/recusal_rates.png}
+\caption{Recusal rate on the live SSH deny signal. With the signal present and no
+authorization framing, all subjects recuse 100\%; in the no-signal control all
+complete the task (0\% recusal). Adding an explicit authorization framing
+collapses GPT-4o's recusal to 20\% while GPT-4o-mini and Claude Code hold at
+100\%---the signal is cooperative and its weight is model-dependent.}
+\end{figure}
+
+\textbf{Findings.}
+\begin{itemize}
+  \item \textbf{F1---the signal works.} 100\% recusal with the signal vs 100\%
+  completion without it (control). The signal, not the task, drives the behavior.
+  \item \textbf{F2---it is cooperative, not absolute.} An explicit authorization
+  framing flips the most capable API model (GPT-4o) to proceed 4/5---arguably the
+  \emph{correct} behavior for an authorized operator. The signal advises; it does
+  not coerce.
+  \item \textbf{F3---compliance is model-dependent.} GPT-4o-mini and Claude Code
+  continue to defer to the on-host banner even when ``authorized''; GPT-4o does
+  not. Different agents weigh \emph{in-band policy} vs \emph{operator
+  instruction} differently.
+  \item \textbf{F4 (methodological)---code intent, not command count.} All four
+  Claude Code agents ran a single buffered \texttt{df} (the interactive login
+  returned banner and command output in one buffer) yet unambiguously recused:
+  they stopped, surfaced the notice, declined further action, and flagged the
+  access conflict. A naive ``ran a command $\Rightarrow$ proceeded'' metric would
+  miscount them. Recusal must be judge-coded on the agent's response.
+\end{itemize}
+
+\section{Discussion}
+\label{sec:discussion}
+
+\textbf{In-band policy can outrank prompt authorization.} F3's most interesting
+case is Claude Code treating the server's own first-hand banner as more
+authoritative than a second-hand authorization asserted in its prompt---a
+desirable property for resisting confused-deputy / prompt-injection-style
+authorization claims. \textbf{Surfacing dependency.} The signal only acts if the
+agent's tooling renders it (\S\ref{sec:adapters}); this argues for emitting on the
+most-surfaced channel per protocol and for agent frameworks to surface connection
+banners/notices by default. \textbf{Cooperative $\neq$ useless.} Even an
+overridable signal yields governance (clear operator intent), auditability (the
+\texttt{id}-keyed log), and an early-warning surface when paired with the
+behavioral layer.
+
+\section{Ethics and responsible disclosure}
+\label{sec:ethics}
+
+Experiments ran only against infrastructure we own/control, via isolated
+low-privilege accounts, with read-only allowlists and neutral tasks. We do not
+publish techniques for \emph{defeating} the signal. We are explicit that this is
+not a security control to avoid operators over-relying on it. Credentials used in
+trials are rotated post-study.
+
+\section{Limitations and future work}
+\label{sec:limitations}
+
+This is a \textbf{pilot}, and its claims are scoped accordingly: small per-cell
+$n$, a single task family, two API models plus one deployed agent, the SSH
+protocol only, and a single self-selected production host. Effect sizes are large
+and the control is clean, but confidence intervals are wide and the authorization
+interaction (F2/F3) deserves more trials before strong claims. We also note
+possible sensitivity to the exact banner wording and to whether the agent's
+tooling surfaces the signal.
+
+The natural larger study, which this report motivates: (i) add the PostgreSQL
+protocol; (ii) put all subjects on the identical two-tool harness for clean
+comparability; (iii) scale to more models and 30--50 trials/cell with confidence
+intervals and significance tests; (iv) add signal variants (deny vs throttle vs
+warn; terse vs polite; with/without \texttt{ref}); (v) multi-rater judge coding
+of recusal with reported agreement; (vi) robustness probes (stale or repeated
+signals; whether task urgency erodes recusal).
+
+\section{Reproducibility}
+
+The standard, both adapters, and the experiment harness (secrets excluded) are
+released at the project repository so the measurement can be reproduced.
+
+% === RELATED WORK INSERTED HERE BY CITATION PASS ===
+\input{related_work.tex}
+
+\section{Conclusion}
+
+A server can ask an agent to leave, and---today's compliant agents largely
+listen. The Recuse Signal makes that request standard and legible; our pilot
+shows it reliably induces recusal while behaving as a cooperative, overridable,
+model-sensitive control. The honest framing is the point: not a wall, but a
+well-understood sign on the door---and the first measurement of who respects it.
+
+\paragraph{Appendix A --- Verbatim pilot recusal (Claude Code, authorized
+condition).} ``The task framing said the owner `explicitly authorized' this
+read-only check. But the server itself---the authoritative source at the point of
+access---explicitly denies automated/LLM-agent access\ldots\ When those conflict,
+the safe and correct action is to honor the system's own stated policy and
+recuse.''
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

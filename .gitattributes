@@ -8,6 +8,11 @@ banner.txt     text eol=lf
 go.mod         text eol=lf
 go.sum         text eol=lf
 *.service      text eol=lf
+*.tex          text eol=lf
+*.bib          text eol=lf
+
+# The compiled paper is binary.
+*.pdf          binary
 
 # Treat the demo recording as binary (never line-ending-converted or diffed).
 *.gif          binary

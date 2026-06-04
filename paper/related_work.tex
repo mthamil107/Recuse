@@ -1,0 +1,99 @@
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Cooperative web conventions and honor-based machine directives.}
+The closest conceptual ancestor of Recuse is the Robots Exclusion Protocol, the
+\texttt{robots.txt} convention introduced by Martijn Koster in 1994 and only
+recently codified as an Internet standard in RFC~9309
+\citep{rfc9309}. The defining property of this lineage is that it is
+\emph{voluntary and honor-based}: the server publishes a machine-readable
+directive describing which automated clients may access which resources, and
+compliant crawlers are expected to withdraw of their own accord. RFC~9309
+standardized parsing, error handling, and caching semantics but deliberately did
+not introduce any enforcement mechanism---compliance remains a matter of the
+client's good faith. The same honor-based philosophy animates ongoing
+standardization of \emph{AI-usage} preferences: the IETF AI Preferences (aipref)
+working group is extending this model to signal whether content may be used for
+AI training or inference \citep{aipref-attach}. Recuse follows directly in this
+tradition but differs in target and timing: rather than a crawl-time directive
+about bulk content harvesting, it defines an \emph{in-band, per-request
+deny-signal} emitted by a live server so that an LLM \emph{agent}---not a
+crawler---voluntarily recuses itself from a specific resource at access time.
+
+\paragraph{LLM agent access control via gateways, tools, and authorization.}
+A growing body of practice mediates agent access through external authorization
+layers. The Model Context Protocol (MCP) standardizes how LLM applications
+connect to tools and data sources, and its security model layers OAuth~2.1-based
+authorization and explicit user-consent flows on top of tool invocation
+\citep{mcp2025}. Notably, the MCP specification itself acknowledges that it
+``cannot enforce these security principles at the protocol level,'' delegating
+consent and access control to host implementations. This captures a structural
+feature of the gateway/proxy approach generally: authorization lives
+\emph{external to the resource}, in a mediating client, gateway, or token issuer
+that decides whether a call is permitted before it reaches the server. Recuse is
+complementary but architecturally inverted---the signal originates \emph{at the
+resource itself}, is legible to the agent, and asks the agent to decline, rather
+than asking an intermediary to block.
+
+\paragraph{Relationship- and role-based authorization.}
+Modern fine-grained authorization is dominated by relationship-based access
+control (ReBAC), popularized by Google's Zanzibar, which stores
+object--relation--user tuples and evaluates authorization as graph reachability
+at massive scale \citep{pang2019zanzibar}. Its open-source descendant OpenFGA
+brings the same model to general developers \citep{openfga}. These systems answer
+the question ``is principal $X$ permitted to act on object $Y$?'' and they do so
+as an \emph{external} policy decision point consulted by the application. Recuse
+addresses a different question entirely: it is not a permission-evaluation engine
+but a \emph{published deny-signal} the resource volunteers to a cooperating
+agent. Crucially, our measurements show that an on-host policy signal can outrank
+prompt-level authorization in agent behavior---a finding that ReBAC/RBAC systems,
+which sit outside the resource and outside the model's instruction context, are
+not designed to address.
+
+\paragraph{Instruction hierarchy and authority conflicts in LLMs.}
+When a server's deny-signal contradicts a user or system prompt that authorizes
+access, the agent faces an authority conflict. \citet{wallace2024instruction}
+formalize this as an \emph{instruction hierarchy}, proposing training that teaches
+models to prioritize privileged instructions and selectively ignore
+lower-privilege ones. Our work is empirically adjacent: we find that a Recuse
+signal delivered in-band can, in practice, outrank explicit prompt authorization,
+which both validates the premise that models arbitrate among competing
+authorities and surfaces a governance lever---the resource's own voice---that the
+instruction-hierarchy literature does not consider as a distinct source of
+authority.
+
+\paragraph{Prompt injection and the confused-deputy problem.}
+A large security literature treats untrusted content reaching an LLM agent as an
+attack surface. \citet{greshake2023injection} introduced \emph{indirect prompt
+injection}, showing that adversarial instructions embedded in retrieved data can
+hijack real-world LLM-integrated applications; structurally this is a modern
+instance of the classic \emph{confused deputy} \citep{hardy1988confused}, in
+which a privileged agent is tricked into misusing its authority on behalf of a
+less-privileged party. This framing is important for honestly positioning Recuse:
+because a deny-signal is just more in-band text, a malicious server could in
+principle emit it to manipulate an agent, and a malicious client can trivially
+ignore it. We therefore explicitly frame Recuse as a \emph{cooperative governance
+signal, not a security control}---it presumes a compliant agent and defers
+adversarial enforcement, exactly the threat model the prompt-injection literature
+targets.
+
+\paragraph{Machine-readable consent for agents, and the measurement gap.}
+The idea of a \texttt{robots.txt}-style, machine-readable policy aimed
+specifically at autonomous web agents is only just emerging. Most directly,
+\citet{marro2026permission} propose \emph{permission manifests} (an
+\texttt{agent-permissions.json} file) that let sites declare which agent
+interactions are permitted, echoing our motivation. Recuse differs along two axes
+that constitute our core contribution. First, mechanism: we standardize an
+\emph{in-band, per-request, agent-legible deny-signal} emitted by the live server
+during access, rather than a separately fetched static manifest. Second, and more
+importantly, to the best of our knowledge \emph{we are the first to empirically
+measure whether deployed LLM agents actually honor such a signal}. We are aware of
+no prior work---neither the cooperative-convention standards
+\citep{rfc9309,aipref-attach}, the agent-permission proposals
+\citep{marro2026permission}, nor the authorization systems above---that reports a
+controlled measurement of agent \emph{compliance} with a voluntary in-band
+withdrawal request; this measurement gap is a central part of what we contribute.
+We deliberately set aside the \emph{enforcement layer}---behavioral bot-management
+and automation detection that distinguish automated from human traffic via
+traffic patterns and biometric/fingerprint signals \citep{iliou2021bots}---as
+orthogonal and complementary future work for the adversarial regime.
