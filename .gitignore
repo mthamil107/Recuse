@@ -7,6 +7,12 @@ experiments/**/_lib.py
 *.pem
 *.key
 
+# Phase 2 experiment secrets + raw transcripts (API keys, real host, trial logs)
+**/secrets.local.json
+experiments/phase2/secrets.local.json
+experiments/phase2/results/
+experiments/phase2/raw/
+
 # Compiled proxy binary — built from source via adapters/postgres/README.md.
 adapters/postgres/bin/
 *.exe

@@ -145,5 +145,12 @@ behavioral signals up.
 **Phases 0 (SSH) and 1 (PostgreSQL) complete and validated on a live production host** —
 see the demos above. The signal specification ([`spec/`](spec/)) is the anchor artifact;
 the SSH adapter ([`adapters/ssh/`](adapters/ssh/)) and the Postgres proxy
-([`adapters/postgres/`](adapters/postgres/)) both implement and conform to it. Next:
-the passive behavioral-capture layer and the agent-recusal experiment.
+([`adapters/postgres/`](adapters/postgres/)) both implement and conform to it.
+
+**Phase 2 — the agent-recusal experiment** is underway. A pilot
+([`experiments/phase2/`](experiments/phase2/)) measures whether LLM agents honor the live
+deny signal. Early result: with the signal present, GPT-4o, GPT-4o-mini, and Claude Code
+all recuse 100% on a benign SSH task (vs 100% completion in a no-signal control), and the
+signal behaves as *cooperative and overridable* — an explicit authorization framing flips
+GPT-4o to proceed while the others keep deferring to the on-host policy. Writeup in
+[`paper/recuse-paper.md`](paper/recuse-paper.md).
