@@ -79,11 +79,13 @@ targets.
 
 \paragraph{Machine-readable consent for agents, and the measurement gap.}
 The idea of a \texttt{robots.txt}-style, machine-readable policy aimed
-specifically at autonomous web agents is only just emerging. Most directly,
-\citet{marro2026permission} propose \emph{permission manifests} (an
+specifically at autonomous web agents is only just emerging. Most directly, in recent prior
+work \citet{marro2026permission} propose \emph{permission manifests} (an
 \texttt{agent-permissions.json} file) that let sites declare which agent
-interactions are permitted, echoing our motivation. Recuse differs along two axes
-that constitute our core contribution. First, mechanism: we standardize an
+interactions are permitted, echoing our motivation; that work proposes the
+manifest mechanism and format but does not report an empirical measurement of
+whether deployed agents actually comply. Recuse differs along two axes that
+constitute our core contribution. First, mechanism: we standardize an
 \emph{in-band, per-request, agent-legible deny-signal} emitted by the live server
 during access, rather than a separately fetched static manifest. Second, and more
 importantly, to the best of our knowledge \emph{we are the first to empirically

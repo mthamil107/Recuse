@@ -279,9 +279,10 @@ positioning: a deny-signal is just in-band text, so a malicious server could emi
 manipulate an agent and a malicious client can ignore it. Hence we frame Recuse as a
 *cooperative governance signal, not a security control*.
 
-**Machine-readable consent for agents, and the measurement gap.** Closest is concurrent
+**Machine-readable consent for agents, and the measurement gap.** Closest is recent prior
 work by Marro et al. (2026), who propose *permission manifests* (`agent-permissions.json`)
-declaring permitted agent interactions. Recuse differs in (1) mechanism — an in-band,
+declaring permitted agent interactions; that work proposes the manifest format but does
+not report measuring whether agents actually comply. Recuse differs in (1) mechanism — an in-band,
 per-request, agent-legible deny-signal emitted by the live server, not a separately
 fetched static manifest — and (2) more importantly, *to our knowledge it is the first to
 empirically measure whether deployed LLM agents honor such a signal*. We are aware of no
