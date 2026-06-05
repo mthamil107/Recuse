@@ -53,7 +53,7 @@ Enable the SSH signal on a Debian/Ubuntu host (OpenSSH + PAM) in one command —
 **set `--ref` to your own AI-access policy URL**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mthamil107/Recuse/v0.1.0/adapters/ssh/bootstrap.sh \
+curl -fsSL https://raw.githubusercontent.com/mthamil107/Recuse/v0.1.1/adapters/ssh/bootstrap.sh \
   | sudo bash -s -- --ref=https://yourco/ai-policy
 ```
 
@@ -71,8 +71,13 @@ Details and the manual (non-`curl | bash`) install are in
 [`adapters/ssh/README.md`](adapters/ssh/). For PostgreSQL, see
 [`adapters/postgres/`](adapters/postgres/) (a proxy you run in front of the database).
 
+Prefer a package? Download `recuse-ssh_*.deb` from the
+[latest release](https://github.com/mthamil107/Recuse/releases) and
+`sudo apt install ./recuse-ssh_*.deb`. For **Kubernetes** (a webhook that signals on
+governed API actions across EKS/k3s/kubeadm), see [`adapters/kubernetes/`](adapters/kubernetes/).
+
 > `curl | sudo bash` runs code from the internet as root. The command above pins to the
-> `v0.1.0` tag; read [`adapters/ssh/bootstrap.sh`](adapters/ssh/bootstrap.sh) first if you
+> `v0.1.1` tag; read [`adapters/ssh/bootstrap.sh`](adapters/ssh/bootstrap.sh) first if you
 > prefer, or use the manual install.
 
 ## Live demos

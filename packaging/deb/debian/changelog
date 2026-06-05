@@ -1,3 +1,10 @@
+recuse-ssh (0.1.1-1) unstable; urgency=medium
+
+  * CI: build + smoke-test (install/remove/purge) the package on Ubuntu and
+    attach it to GitHub releases. No package behavior changes from 0.1.0.
+
+ -- Thamilvendhan Munirathinam <mthamil107@gmail.com>  Fri, 05 Jun 2026 09:00:00 +0000
+
 recuse-ssh (0.1.0-1) unstable; urgency=medium
 
   * Initial Debian packaging of the Recuse cooperative-signal SSH adapter.

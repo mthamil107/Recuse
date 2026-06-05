@@ -23,7 +23,7 @@ RAW_BASE="https://raw.githubusercontent.com"
 
 # Default pinned ref: env RECUSE_VERSION, else v0.1.0, with a fallback to main
 # if the tagged ref is not found (404).
-DEFAULT_REF="${RECUSE_VERSION:-v0.1.0}"
+DEFAULT_REF="${RECUSE_VERSION:-v0.1.1}"
 FALLBACK_REF="main"
 
 # Files that make up the adapter (downloaded into the temp dir).
