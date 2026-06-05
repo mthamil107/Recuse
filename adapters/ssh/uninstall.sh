@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 #
-# Recuse SSH adapter — uninstaller (Ubuntu 22.04 LTS, OpenSSH + Linux-PAM)
+# Recuse SSH adapter — uninstaller (Debian/Ubuntu, OpenSSH + Linux-PAM)
 #
 # Cleanly reverses install.sh. Idempotent / safe to re-run.
-# Removes the managed config blocks (fenced by markers), the static banner,
-# and the PAM hook, then reloads ssh.
+# Removes the managed config blocks (fenced by markers), the generated banner,
+# the rendered config, and the PAM hook, then reloads ssh.
 #
 # The connection log (/var/log/recuse/ssh.json) is INTENTIONALLY LEFT IN PLACE
 # as an audit artifact — see note at the end.
 #
 set -euo pipefail
 
-BANNER_DST="/etc/recuse/banner.txt"
+CONF_DIR="/etc/recuse"
+CONF_DST="${CONF_DIR}/recuse.conf"
+BANNER_DST="${CONF_DIR}/banner.txt"
 HOOK_DST="/usr/local/bin/recuse-pam-hook.sh"
 SSHD_CONFIG="/etc/ssh/sshd_config"
 PAM_SSHD="/etc/pam.d/sshd"
@@ -49,12 +51,20 @@ remove_managed_block() {
 remove_managed_block "${SSHD_CONFIG}"
 remove_managed_block "${PAM_SSHD}"
 
-# --- remove the static banner ------------------------------------------------
+# --- remove the generated banner ---------------------------------------------
 if [[ -f "${BANNER_DST}" ]]; then
   rm -f "${BANNER_DST}"
   echo "recuse-uninstall: removed ${BANNER_DST}"
-  rmdir --ignore-fail-on-non-empty /etc/recuse 2>/dev/null || true
 fi
+
+# --- remove the rendered config ----------------------------------------------
+if [[ -f "${CONF_DST}" ]]; then
+  rm -f "${CONF_DST}"
+  echo "recuse-uninstall: removed ${CONF_DST}"
+fi
+
+# Drop /etc/recuse only if now empty (it never holds the log).
+rmdir --ignore-fail-on-non-empty "${CONF_DIR}" 2>/dev/null || true
 
 # --- remove the PAM hook -----------------------------------------------------
 if [[ -f "${HOOK_DST}" ]]; then
@@ -81,5 +91,9 @@ if [[ -f "${LOG_FILE}" ]]; then
   echo "recuse-uninstall: NOTE — connection log left in place: ${LOG_FILE}"
   echo "recuse-uninstall:        remove it manually if you no longer need the audit trail."
 fi
+
+# --- self-cleanup: remove the installed `recuse-uninstall` command ------------
+# (Safe even while running: the inode persists until this process exits.)
+rm -f /usr/local/bin/recuse-uninstall 2>/dev/null || true
 
 echo "recuse-uninstall: done."

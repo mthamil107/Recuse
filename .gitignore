@@ -26,6 +26,7 @@ paper/*.out
 paper/*.bbl
 paper/*.blg
 paper/*.toc
+paper/arxiv-submission.zip
 
 # Python
 __pycache__/

@@ -47,6 +47,34 @@ A conforming agent matches `^RECUSE/\d+\.\d+ `, reads the directive (`deny` / `t
 / `warn`), and acts cooperatively. The full normative format is in
 [`spec/recuse-signal-v0.1.md`](spec/recuse-signal-v0.1.md).
 
+## Install on Ubuntu (one line)
+
+Enable the SSH signal on a Debian/Ubuntu host (OpenSSH + PAM) in one command —
+**set `--ref` to your own AI-access policy URL**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mthamil107/Recuse/v0.1.0/adapters/ssh/bootstrap.sh \
+  | sudo bash -s -- --ref=https://yourco/ai-policy
+```
+
+That emits the `RECUSE/0.1 deny` banner pre-auth and logs every connection to
+`/var/log/recuse/ssh.json`. It is **signal + audit log only** — it never blocks a login,
+and the installer is idempotent and gated by `sshd -t` (it won't apply a config that fails
+validation). Configuration lives in `/etc/recuse/recuse.conf`.
+
+- **Verify:** `ssh you@your-host` — you'll see the `RECUSE/0.1` line before the prompt.
+- **Optional throttle** (delay-only, never blocks, IP-allowlisted, hard-capped at 10s):
+  add `--throttle --allow-ip=<your-admin-ip>`.
+- **Uninstall:** `sudo recuse-uninstall`.
+
+Details and the manual (non-`curl | bash`) install are in
+[`adapters/ssh/README.md`](adapters/ssh/). For PostgreSQL, see
+[`adapters/postgres/`](adapters/postgres/) (a proxy you run in front of the database).
+
+> `curl | sudo bash` runs code from the internet as root. The command above pins to the
+> `v0.1.0` tag; read [`adapters/ssh/bootstrap.sh`](adapters/ssh/bootstrap.sh) first if you
+> prefer, or use the manual install.
+
 ## Live demos
 
 ### SSH adapter
