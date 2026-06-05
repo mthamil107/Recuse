@@ -8,6 +8,12 @@ This is the Kubernetes binding for the Recuse project. It emits the sentinel
 line defined in spec **section 4** of
 [`../../spec/recuse-signal-v0.1.md`](../../spec/recuse-signal-v0.1.md).
 
+> **Validated live** on a real **MicroK8s v1.32** cluster (scoped to a throwaway
+> namespace, `failurePolicy: Ignore`): a non-exempt ServiceAccount creating a pod
+> received the `RECUSE/0.1 deny` admission **warning** in `warn` mode and was
+> **blocked** with the sentinel in `deny` mode, while an exempt `system:masters`
+> admin saw nothing — and the host's production namespaces were untouched.
+
 > **This is a cooperative signal, NOT a security control (spec §9).**
 > A non-conforming or malicious caller can ignore the warning and proceed using
 > valid credentials. Do not rely on this webhook as the sole protection for any
