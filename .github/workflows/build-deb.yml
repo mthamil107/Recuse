@@ -46,6 +46,22 @@ jobs:
           echo "deb_path=${deb}" >> "$GITHUB_OUTPUT"
           ls -l dist/
 
+      - name: Prepare a valid base sshd (host keys) for the smoke test
+        run: |
+          set -euo pipefail
+          # A fresh runner may lack SSH host keys, which makes `sshd -t` fail for
+          # reasons unrelated to our package — and our postinst correctly backs
+          # its changes out when sshd -t fails. Generate any missing host keys and
+          # confirm the BASE config is valid before we layer our package on top.
+          sudo ssh-keygen -A
+          echo "--- base sshd -t (before installing recuse-ssh) ---"
+          if ! sudo sshd -t; then
+            echo "::error::base sshd -t fails on this runner, independent of recuse-ssh:"
+            sudo sshd -t || true
+            exit 1
+          fi
+          echo "OK: base sshd config is valid"
+
       - name: Smoke test — install
         run: |
           set -euo pipefail
