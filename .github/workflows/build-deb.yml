@@ -54,6 +54,9 @@ jobs:
           # its changes out when sshd -t fails. Generate any missing host keys and
           # confirm the BASE config is valid before we layer our package on top.
           sudo ssh-keygen -A
+          # sshd has never run on a fresh runner, so its privilege-separation
+          # dir is absent; create it (a real server where sshd runs always has it).
+          sudo mkdir -p /run/sshd
           echo "--- base sshd -t (before installing recuse-ssh) ---"
           if ! sudo sshd -t; then
             echo "::error::base sshd -t fails on this runner, independent of recuse-ssh:"
