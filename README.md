@@ -127,6 +127,26 @@ client ──▶ :6433 recuse-pg-proxy ──▶ :5432 postgres
 | JSON connect log (`/var/log/recuse/pg.json`) | ✅ valid JSON Lines |
 | Production Postgres config / other databases | ✅ untouched (zero blast radius) |
 
+### Kubernetes adapter (admission webhook)
+
+![Recuse Kubernetes webhook demo](docs/recuse-k8s-demo.gif)
+
+A ValidatingAdmissionWebhook ([`adapters/kubernetes/`](adapters/kubernetes/)) emits the
+signal when a non-exempt identity performs a governed API action (`create`/`update`/
+`delete`/`exec`/`port-forward`) — **warn** by default (the agent sees it and recuses),
+**deny** optional. Works on EKS, k3s, and kubeadm. Validated live on **MicroK8s v1.32**:
+
+| Check | Result |
+|-------|--------|
+| Non-exempt agent ServiceAccount, `warn` mode | ✅ `RECUSE/0.1 deny` admission warning; op allowed |
+| Non-exempt agent, `deny` mode | ✅ blocked: `admission webhook … denied the request: RECUSE/0.1 …` |
+| `system:masters` admin (exempt) | ✅ no signal |
+| Cannot wedge the cluster | ✅ `failurePolicy: Ignore`, system namespaces excluded |
+| Production namespaces during the test | ✅ untouched (scoped to a throwaway namespace) |
+
+Admission webhooks don't see reads (`get`/`list`/`watch`) — documented; full read
+coverage needs an authorization webhook (k3s/self-managed, not managed EKS).
+
 ## Why this exists
 
 Most LLM-access work today lives at the gateway or in role-based permission models.
