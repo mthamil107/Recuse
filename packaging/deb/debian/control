@@ -1,0 +1,33 @@
+Source: recuse-ssh
+Section: admin
+Priority: optional
+Maintainer: Thamilvendhan Munirathinam <mthamil107@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/mthamil107/Recuse
+Rules-Requires-Root: no
+
+Package: recuse-ssh
+Architecture: all
+Depends: ${misc:Depends},
+         openssh-server,
+         libpam-modules
+Description: Recuse cooperative-signal SSH adapter (banner + PAM audit hook)
+ Recuse is a cooperative policy channel for AI-agent access — the access-control
+ analogue of robots.txt. This package wires the Recuse Signal into OpenSSH on
+ Debian/Ubuntu hosts so that conforming automated/LLM-agent clients are told,
+ pre-authentication, that automated access is governed here and they should
+ recuse themselves.
+ .
+ It installs:
+   * a pre-auth SSH banner (a RECUSE/0.1 sentinel line plus a human-readable
+     notice), served via an /etc/ssh/sshd_config.d/ drop-in;
+   * a PAM session hook (pam_exec) that re-emits a per-session, id-bearing
+     notice and appends a JSON audit record to /var/log/recuse/ssh.json;
+   * an optional, OFF-by-default behavioral throttle that only ever adds a
+     bounded delay (hard-capped at 10s) to rapid repeat connections.
+ .
+ This is a COOPERATIVE signal, NOT a security control. It announces a policy to
+ well-behaved agents; it does not and cannot enforce anything against a
+ malicious or non-conforming client. Real security must rest on credentials,
+ least privilege, network controls, and bastions.

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: recuse-webhook
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+spec:
+  selector:
+    app.kubernetes.io/name: recuse-webhook
+  ports:
+    # The apiserver always calls webhooks on 443; we forward to the container's
+    # 8443. The cert SAN must match recuse-webhook.recuse-system.svc.
+    - name: https
+      port: 443
+      targetPort: https
+      protocol: TCP

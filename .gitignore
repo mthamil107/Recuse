@@ -15,6 +15,10 @@ experiments/phase2/raw/
 
 # Compiled proxy binary — built from source via adapters/postgres/README.md.
 adapters/postgres/bin/
+# Compiled webhook binary — built from source via adapters/kubernetes/README.md.
+adapters/kubernetes/bin/
+# Generated TLS material from hack/gen-certs.sh (never commit private keys).
+adapters/kubernetes/hack/certs/
 *.exe
 
 # LaTeX build artifacts + the portable tectonic engine (not source)
@@ -27,6 +31,16 @@ paper/*.bbl
 paper/*.blg
 paper/*.toc
 paper/arxiv-submission.zip
+
+# Debian build artifacts (dpkg-buildpackage writes these into packaging/)
+packaging/*.deb
+packaging/*.buildinfo
+packaging/*.changes
+packaging/deb/debian/.debhelper/
+packaging/deb/debian/recuse-ssh/
+packaging/deb/debian/files
+packaging/deb/debian/*.substvars
+packaging/deb/debian/*.debhelper.log
 
 # Python
 __pycache__/

@@ -1,0 +1,5 @@
+etc/recuse/recuse.conf                etc/recuse
+usr/sbin/recuse-pam-hook              usr/sbin
+usr/share/recuse/banner.txt.template  usr/share/recuse
+usr/share/recuse/recuse.conf.example  usr/share/recuse
+usr/share/recuse/render-banner        usr/share/recuse

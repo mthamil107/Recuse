@@ -1,0 +1,89 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: recuse
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+webhooks:
+  - name: recuse.recuse-system.svc
+    # ===================================================================
+    # ===  SAFETY-CRITICAL SETTINGS — READ BEFORE EDITING             ===
+    # ===================================================================
+
+    # >>> THE SINGLE MOST IMPORTANT SAFETY SETTING <<<
+    # failurePolicy: Ignore  ==>  FAIL-OPEN.
+    # If this webhook is down, slow, unreachable, returns an error, or its TLS
+    # is broken, the apiserver ALLOWS the request anyway. A broken Recuse
+    # webhook can therefore NEVER block legitimate cluster operations or wedge
+    # the control plane. This is a COOPERATIVE signal, not a gate; do NOT change
+    # this to Fail without fully understanding the deadlock risk.
+    failurePolicy: Ignore
+
+    # No side effects on dry-run: the webhook only signals, never mutates.
+    sideEffects: None
+
+    # We speak admission.k8s.io/v1 only.
+    admissionReviewVersions: ["v1"]
+
+    # Small timeout: even if the webhook hangs, the apiserver gives up fast and
+    # (because failurePolicy: Ignore) allows the request.
+    timeoutSeconds: 5
+
+    # ===================================================================
+    # ===  NAMESPACE EXCLUSIONS — never govern system namespaces      ===
+    # ===================================================================
+    # Excluding the control-plane and the adapter's own namespace prevents a
+    # deadlock: governing kube-system (where controllers/scheduler run) or
+    # recuse-system (where THIS webhook runs) could disrupt the cluster.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - kube-node-lease
+            - kube-public
+            - recuse-system
+
+    clientConfig:
+      service:
+        name: recuse-webhook
+        namespace: recuse-system
+        path: /validate
+        port: 443
+      # caBundle is injected by hack/gen-certs.sh (or cert-manager's
+      # cert-manager.io/inject-ca-from annotation). Leave as the placeholder
+      # until then; the apiserver must trust the server cert via this CA.
+      caBundle: "__CA_BUNDLE__"
+
+    rules:
+      # Broad default governed set: create/update/delete of common workload and
+      # config resources in non-system namespaces. Tune apiGroups/resources to
+      # your policy. Operations a read-only agent uses (get/list/watch) are NOT
+      # visible to admission webhooks — see README "Reads are not covered".
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources:
+          ["deployments", "statefulsets", "daemonsets", "replicasets"]
+        scope: Namespaced
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources:
+          ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+        scope: Namespaced
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["jobs", "cronjobs"]
+        scope: Namespaced
+
+      # CONNECT on pods/exec and pods/portforward: catches `kubectl exec` and
+      # `kubectl port-forward` by an agent so interactive access is signalled.
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CONNECT"]
+        resources: ["pods/exec", "pods/portforward"]
+        scope: Namespaced

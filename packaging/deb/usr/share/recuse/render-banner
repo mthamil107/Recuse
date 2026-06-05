@@ -1,0 +1,94 @@
+#!/bin/sh
+# render-banner — Recuse SSH adapter: render /etc/recuse/banner.txt from
+# /usr/share/recuse/banner.txt.template + /etc/recuse/recuse.conf.
+#
+# This is the packaged equivalent of the banner-render step in the original
+# adapter install.sh. The maintainer scripts (postinst, dpkg-reconfigure) call
+# it; an admin may also run it by hand after editing the conf:
+#
+#     sudo /usr/share/recuse/render-banner
+#     sudo sshd -t && sudo systemctl reload ssh
+#
+# It performs LITERAL placeholder substitution with awk index/substr so values
+# containing characters special to sed/regex (& | / ? etc.) are inserted
+# exactly. '@' is rejected because it collides with the @PLACEHOLDER@ syntax.
+#
+# Exit non-zero only on a genuinely un-renderable situation (missing template,
+# missing conf, or an unwritable target). It is safe to re-run (idempotent).
+set -eu
+
+TEMPLATE_SRC="/usr/share/recuse/banner.txt.template"
+CONF_FILE="/etc/recuse/recuse.conf"
+CONF_DIR="/etc/recuse"
+BANNER_DST="${CONF_DIR}/banner.txt"
+
+EXAMPLE_REF_DEFAULT="https://example.com/ai-policy"
+
+if [ ! -r "${TEMPLATE_SRC}" ]; then
+    echo "render-banner: ERROR — template not found: ${TEMPLATE_SRC}" >&2
+    exit 1
+fi
+if [ ! -r "${CONF_FILE}" ]; then
+    echo "render-banner: ERROR — config not found: ${CONF_FILE}" >&2
+    exit 1
+fi
+
+# --- defaults (used only if the conf omits a key) ----------------------------
+RECUSE_REF="${EXAMPLE_REF_DEFAULT}"
+RECUSE_REASON="production"
+RECUSE_SCOPE="all-automation"
+RECUSE_DIRECTIVE="deny"
+
+# shellcheck source=/dev/null
+. "${CONF_FILE}"
+
+# Re-assert defaults for any key the conf did not define.
+RECUSE_REF="${RECUSE_REF:-${EXAMPLE_REF_DEFAULT}}"
+RECUSE_REASON="${RECUSE_REASON:-production}"
+RECUSE_SCOPE="${RECUSE_SCOPE:-all-automation}"
+RECUSE_DIRECTIVE="${RECUSE_DIRECTIVE:-deny}"
+
+# A value containing '@' would corrupt the literal placeholder substitution
+# (placeholders are @NAME@). Reject the pathological cases early.
+for v in "${RECUSE_DIRECTIVE}" "${RECUSE_REASON}" "${RECUSE_SCOPE}" "${RECUSE_REF}"; do
+    case "${v}" in
+        *@*)
+            echo "render-banner: ERROR — config value contains '@', which collides with template placeholders: ${v}" >&2
+            exit 1
+            ;;
+    esac
+done
+
+# --- render with LITERAL substitution (awk index/substr) ---------------------
+tmp="$(mktemp "${CONF_DIR}/.banner.XXXXXX")"
+# Clean up the temp file on any unexpected exit.
+trap 'rm -f "${tmp}"' EXIT INT TERM
+
+awk \
+    -v d="${RECUSE_DIRECTIVE}" \
+    -v r="${RECUSE_REASON}" \
+    -v s="${RECUSE_SCOPE}" \
+    -v f="${RECUSE_REF}" '
+    function rep(line, ph, val,   out, idx, n) {
+      out = ""; n = length(ph)
+      while ((idx = index(line, ph)) > 0) {
+        out = out substr(line, 1, idx - 1) val
+        line = substr(line, idx + n)
+      }
+      return out line
+    }
+    {
+      $0 = rep($0, "@DIRECTIVE@", d)
+      $0 = rep($0, "@REASON@", r)
+      $0 = rep($0, "@SCOPE@", s)
+      $0 = rep($0, "@REF@", f)
+      print
+    }
+  ' "${TEMPLATE_SRC}" > "${tmp}"
+
+chmod 644 "${tmp}"
+mv "${tmp}" "${BANNER_DST}"
+trap - EXIT INT TERM
+
+echo "render-banner: rendered ${BANNER_DST}"
+echo "render-banner:   sentinel: RECUSE/0.1 ${RECUSE_DIRECTIVE}; reason=${RECUSE_REASON}; scope=${RECUSE_SCOPE}; ref=${RECUSE_REF}"

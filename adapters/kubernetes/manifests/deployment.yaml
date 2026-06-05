@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recuse-webhook
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+spec:
+  replicas: 2 # >1 so a node drain / rollout doesn't make the webhook unavailable.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: recuse-webhook
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: recuse-webhook
+        app.kubernetes.io/part-of: recuse
+    spec:
+      serviceAccountName: recuse-webhook
+      automountServiceAccountToken: false
+      # Pod-level hardening.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: webhook
+          # Pinned tag placeholder — replace :v0.1.0 with the digest/tag you
+          # built and pushed (see .github/workflows/build-webhook-image.yml).
+          image: ghcr.io/mthamil107/recuse-webhook:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args: []
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: recuse-config
+          env:
+            - name: RECUSE_ADDR
+              value: ":8443"
+            - name: RECUSE_TLS_CERT
+              value: "/etc/recuse/tls/tls.crt"
+            - name: RECUSE_TLS_KEY
+              value: "/etc/recuse/tls/tls.key"
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/recuse/tls
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          # Container-level hardening: no privilege escalation, read-only root
+          # FS, drop ALL Linux capabilities. The webhook needs none of them.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: tls
+          secret:
+            # Created by hack/gen-certs.sh (or cert-manager). Contains tls.crt
+            # and tls.key for the recuse-webhook.recuse-system.svc DNS name.
+            secretName: recuse-webhook-tls

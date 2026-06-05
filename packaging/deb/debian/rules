@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+# Recuse SSH adapter — debhelper rules (compat 13, declared in control).
+#
+# Pure-shell package: nothing to compile. dh handles everything; the payload
+# files are placed by debian/recuse-ssh.install. We only fix up the executable
+# bit on the scripts after install (dh_fixperms makes 0644 by default, but the
+# PAM hook and render-banner must be 0755).
+
+%:
+	dh $@
+
+override_dh_fixperms:
+	dh_fixperms
+	chmod 0755 debian/recuse-ssh/usr/sbin/recuse-pam-hook
+	chmod 0755 debian/recuse-ssh/usr/share/recuse/render-banner

@@ -1,0 +1,15 @@
+recuse-ssh (0.1.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging of the Recuse cooperative-signal SSH adapter.
+    - FHS layout: PAM hook at /usr/sbin/recuse-pam-hook; template, example
+      config and render-banner helper under /usr/share/recuse; conffile at
+      /etc/recuse/recuse.conf.
+    - postinst renders the banner, installs an /etc/ssh/sshd_config.d/ drop-in
+      (falling back to a marker-fenced sshd_config append), wires the PAM
+      session hook into /etc/pam.d/sshd, and reloads ssh only after `sshd -t`
+      passes.
+    - prerm/postrm cleanly remove the drop-in and PAM line and revalidate sshd.
+      On purge, /etc/recuse is removed (conffile handled by dpkg) but the audit
+      log /var/log/recuse/ssh.json is intentionally preserved.
+
+ -- Thamilvendhan Munirathinam <mthamil107@gmail.com>  Thu, 05 Jun 2026 00:00:00 +0000

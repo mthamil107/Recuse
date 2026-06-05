@@ -1,0 +1,47 @@
+# Minimal RBAC for the Recuse webhook.
+#
+# LEAST PRIVILEGE: the webhook does NOT read or mutate cluster state. It only
+# receives AdmissionReview requests over HTTPS and replies. It therefore needs
+# essentially NO API permissions. We create a dedicated ServiceAccount (so the
+# adapter has a stable identity to self-exempt via RECUSE_OWN_SERVICE_ACCOUNT)
+# and bind it to an empty Role — granting nothing. This makes the intent
+# explicit and auditable rather than leaving the SA bound to the namespace
+# default.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: recuse-webhook
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+automountServiceAccountToken: false
+---
+# An intentionally EMPTY Role: zero rules, zero permissions. Documents that the
+# webhook needs no API access.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: recuse-webhook
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: recuse-webhook
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: recuse-webhook
+subjects:
+  - kind: ServiceAccount
+    name: recuse-webhook
+    namespace: recuse-system

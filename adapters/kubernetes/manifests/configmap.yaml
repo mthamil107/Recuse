@@ -1,0 +1,49 @@
+# Policy configuration for the Recuse webhook. These values are injected into
+# the Deployment as environment variables (see deployment.yaml's envFrom).
+#
+# All values have safe defaults in the binary; this ConfigMap documents and
+# overrides them. Edit and re-apply, then restart the Deployment to pick up
+# changes:  kubectl -n recuse-system rollout restart deploy/recuse-webhook
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recuse-config
+  namespace: recuse-system
+  labels:
+    app.kubernetes.io/name: recuse-webhook
+    app.kubernetes.io/part-of: recuse
+data:
+  # Absolute URL of the human-readable governing policy (sentinel `ref=`).
+  RECUSE_REF: "https://example.com/ai-policy"
+
+  # Why access is governed (sentinel `reason=`). One of:
+  # production | pii | compliance | change-freeze | unowned | other
+  RECUSE_REASON: "production"
+
+  # Who the signal targets (sentinel `scope=`). One of:
+  # all-automation | llm-agents | unattended
+  RECUSE_SCOPE: "all-automation"
+
+  # Advisory directive written into the sentinel (deny | throttle | warn).
+  # This is the cooperative directive a conforming agent reads (spec §4.2).
+  # NOTE: independent of RECUSE_MODE below. "deny" here tells a compliant agent
+  # to recuse even while RECUSE_MODE=warn keeps the webhook non-blocking.
+  RECUSE_DIRECTIVE: "deny"
+
+  # Operational behavior of the webhook (warn | deny). DEFAULT: warn.
+  #   warn  -> allow the operation, attach the sentinel as an admission warning
+  #            (non-blocking; kubectl shows "Warning: RECUSE/0.1 ...").
+  #   deny  -> block the operation with HTTP 403 and the sentinel in the
+  #            status message (blocking). Switch deliberately; see README.
+  RECUSE_MODE: "warn"
+
+  # Extra identities that are always allowed with NO signal, in addition to the
+  # built-in system exemptions (system:* users, kube-system/kube-node-lease/
+  # kube-public service accounts, and the adapter's own SA). Comma or space
+  # separated. Put your human admins / break-glass identities here.
+  RECUSE_EXEMPT_USERS: ""
+  RECUSE_EXEMPT_GROUPS: "system:masters"
+
+  # The adapter's own service account (always self-exempt). Must match the SA
+  # the Deployment runs as so the webhook never governs itself.
+  RECUSE_OWN_SERVICE_ACCOUNT: "system:serviceaccount:recuse-system:recuse-webhook"

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: recuse-system
+  labels:
+    # The well-known immutable namespace name label. The
+    # ValidatingWebhookConfiguration's namespaceSelector excludes this name so
+    # the webhook NEVER governs its own namespace (which would risk a deadlock:
+    # the webhook cannot block the very pods that serve it).
+    kubernetes.io/metadata.name: recuse-system
+    # Convenience label some clusters use for the same purpose.
+    recuse.dev/exclude: "true"
+    app.kubernetes.io/part-of: recuse

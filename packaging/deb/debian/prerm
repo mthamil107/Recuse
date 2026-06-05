@@ -1,0 +1,81 @@
+#!/bin/sh
+# prerm — Recuse SSH adapter
+#
+# On `remove` (and the remove leg of an upgrade we deliberately skip): tear down
+# the SSH/PAM wiring so the box is clean before our files disappear. We do this
+# in prerm rather than postrm so that, if anything is off, the package binaries
+# (sshd, our helpers) are all still present.
+#
+#   * remove the /etc/ssh/sshd_config.d/recuse.conf drop-in (or the marker block)
+#   * remove the PAM marker block from /etc/pam.d/sshd
+#   * `sshd -t`; reload ssh only if it passes (never leave sshd broken)
+#
+# Idempotent. set -e with the sshd path guarded.
+set -e
+
+PAM_SSHD="/etc/pam.d/sshd"
+SSHD_CONFIG="/etc/ssh/sshd_config"
+DROPIN="/etc/ssh/sshd_config.d/recuse.conf"
+
+MARK_BEGIN="# >>> recuse-ssh adapter (managed) >>>"
+MARK_END="# <<< recuse-ssh adapter (managed) <<<"
+
+remove_managed_block() {
+    target="$1"
+    [ -f "${target}" ] || return 0
+    grep -qF "${MARK_BEGIN}" "${target}" 2>/dev/null || return 0
+    sed -i "\|${MARK_BEGIN}|,\|${MARK_END}|d" "${target}"
+}
+
+reload_ssh() {
+    if command -v deb-systemd-invoke >/dev/null 2>&1; then
+        deb-systemd-invoke reload ssh.service >/dev/null 2>&1 && return 0
+        deb-systemd-invoke reload sshd.service >/dev/null 2>&1 && return 0
+    fi
+    if command -v invoke-rc.d >/dev/null 2>&1; then
+        invoke-rc.d ssh reload >/dev/null 2>&1 && return 0
+        invoke-rc.d sshd reload >/dev/null 2>&1 && return 0
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl reload ssh >/dev/null 2>&1 && return 0
+        systemctl reload sshd >/dev/null 2>&1 && return 0
+    fi
+    if command -v service >/dev/null 2>&1; then
+        service ssh reload >/dev/null 2>&1 && return 0
+        service sshd reload >/dev/null 2>&1 && return 0
+    fi
+    return 1
+}
+
+case "$1" in
+    remove|deconfigure)
+        # Drop-in banner install.
+        rm -f "${DROPIN}"
+        # Fallback marker block, if it was used instead of the drop-in.
+        remove_managed_block "${SSHD_CONFIG}"
+        # PAM session hook line.
+        remove_managed_block "${PAM_SSHD}"
+
+        # Revalidate + reload; never leave sshd in a broken state.
+        if command -v sshd >/dev/null 2>&1; then
+            if sshd -t 2>/dev/null; then
+                reload_ssh || \
+                    echo "recuse-ssh: WARNING — could not reload ssh after removal." >&2
+            else
+                echo "recuse-ssh: WARNING — 'sshd -t' failed after removing our config." >&2
+                echo "recuse-ssh:          this likely predates us; ssh NOT reloaded." >&2
+            fi
+        fi
+        ;;
+
+    upgrade|failed-upgrade)
+        # On upgrade, leave the wiring in place; the new postinst re-asserts it.
+        ;;
+
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

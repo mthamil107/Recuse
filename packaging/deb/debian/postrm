@@ -1,0 +1,42 @@
+#!/bin/sh
+# postrm — Recuse SSH adapter
+#
+# On `purge`:
+#   * dpkg has already removed the conffile /etc/recuse/recuse.conf.
+#   * remove the rendered banner and the now-empty /etc/recuse directory.
+#   * LEAVE /var/log/recuse/ssh.json (audit trail) in place, with a note.
+#
+# The active sshd/pam wiring is torn down in prerm (while sshd is still present).
+# This script only handles config-tree cleanup on purge.
+#
+# Idempotent. set -e.
+set -e
+
+CONF_DIR="/etc/recuse"
+BANNER_DST="${CONF_DIR}/banner.txt"
+LOG_FILE="/var/log/recuse/ssh.json"
+
+case "$1" in
+    purge)
+        # The conffile itself is removed by dpkg; clean up the rendered banner
+        # and any stray temp files we may have left, then drop the dir if empty.
+        rm -f "${BANNER_DST}"
+        rm -f "${CONF_DIR}"/.banner.* 2>/dev/null || true
+        rmdir "${CONF_DIR}" 2>/dev/null || true
+
+        if [ -f "${LOG_FILE}" ]; then
+            echo "recuse-ssh: NOTE — audit log left in place: ${LOG_FILE}" >&2
+            echo "recuse-ssh:        remove it manually if the audit trail is no longer needed." >&2
+        fi
+        ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

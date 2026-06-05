@@ -1,0 +1,181 @@
+#!/bin/sh
+# postinst — Recuse SSH adapter
+#
+# On `configure`:
+#   * render /etc/recuse/banner.txt from the template + /etc/recuse/recuse.conf
+#   * create /var/log/recuse (0700) and ssh.json (0600)
+#   * install the SSH banner via a drop-in /etc/ssh/sshd_config.d/recuse.conf
+#     (falling back to a marker-fenced append to /etc/ssh/sshd_config if the
+#     host's sshd_config does not Include that directory)
+#   * wire the PAM session hook into /etc/pam.d/sshd (marker-fenced, idempotent)
+#   * `sshd -t`, and only reload ssh if it passes; if it fails, back the drop-in
+#     out and warn — never brick the box
+#   * warn loudly if RECUSE_REF is still the example.com default
+#
+# Idempotent and safe to re-run. set -e: any unexpected failure aborts the
+# configure step (dpkg will report it) — but the sshd-validation path is guarded
+# so a bad host sshd_config cannot wedge the install.
+set -e
+
+CONF_DIR="/etc/recuse"
+CONF_FILE="${CONF_DIR}/recuse.conf"
+BANNER_DST="${CONF_DIR}/banner.txt"
+RENDER="/usr/share/recuse/render-banner"
+
+PAM_SSHD="/etc/pam.d/sshd"
+SSHD_CONFIG="/etc/ssh/sshd_config"
+SSHD_CONFD="/etc/ssh/sshd_config.d"
+DROPIN="${SSHD_CONFD}/recuse.conf"
+
+LOG_DIR="/var/log/recuse"
+LOG_FILE="${LOG_DIR}/ssh.json"
+
+HOOK="/usr/sbin/recuse-pam-hook"
+EXAMPLE_REF_DEFAULT="https://example.com/ai-policy"
+
+# Marker fencing so we can find/remove our additions later, idempotently.
+MARK_BEGIN="# >>> recuse-ssh adapter (managed) >>>"
+MARK_END="# <<< recuse-ssh adapter (managed) <<<"
+
+# --- append a fenced managed block to a config file if not already present ----
+append_managed_block() {
+    target="$1"
+    body="$2"
+    if [ -f "${target}" ] && grep -qF "${MARK_BEGIN}" "${target}" 2>/dev/null; then
+        return 0
+    fi
+    {
+        printf '\n%s\n' "${MARK_BEGIN}"
+        printf '%s\n' "${body}"
+        printf '%s\n' "${MARK_END}"
+    } >> "${target}"
+}
+
+# --- remove a fenced managed block from a config file -------------------------
+remove_managed_block() {
+    target="$1"
+    [ -f "${target}" ] || return 0
+    grep -qF "${MARK_BEGIN}" "${target}" 2>/dev/null || return 0
+    sed -i "\|${MARK_BEGIN}|,\|${MARK_END}|d" "${target}"
+}
+
+# --- does sshd_config Include the drop-in directory? --------------------------
+sshd_includes_dropin_dir() {
+    [ -f "${SSHD_CONFIG}" ] || return 1
+    # Match a non-commented Include line that pulls in sshd_config.d/*.conf.
+    grep -Eiq '^[[:space:]]*Include[[:space:]]+/etc/ssh/sshd_config\.d/\*\.conf' \
+        "${SSHD_CONFIG}"
+}
+
+# --- reload ssh via deb helpers, guarded --------------------------------------
+reload_ssh() {
+    if command -v deb-systemd-invoke >/dev/null 2>&1; then
+        deb-systemd-invoke reload ssh.service >/dev/null 2>&1 && return 0
+        deb-systemd-invoke reload sshd.service >/dev/null 2>&1 && return 0
+    fi
+    if command -v invoke-rc.d >/dev/null 2>&1; then
+        invoke-rc.d ssh reload >/dev/null 2>&1 && return 0
+        invoke-rc.d sshd reload >/dev/null 2>&1 && return 0
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl reload ssh >/dev/null 2>&1 && return 0
+        systemctl reload sshd >/dev/null 2>&1 && return 0
+    fi
+    if command -v service >/dev/null 2>&1; then
+        service ssh reload >/dev/null 2>&1 && return 0
+        service sshd reload >/dev/null 2>&1 && return 0
+    fi
+    return 1
+}
+
+case "$1" in
+    configure)
+        # 1. render the banner from template + conf
+        if [ -x "${RENDER}" ]; then
+            "${RENDER}" || echo "recuse-ssh: WARNING — banner render failed; check ${CONF_FILE}." >&2
+        fi
+
+        # 2. log dir + file with safe perms
+        mkdir -p "${LOG_DIR}"
+        chmod 700 "${LOG_DIR}"
+        if [ ! -e "${LOG_FILE}" ]; then
+            ( umask 177; : > "${LOG_FILE}" )
+        fi
+        chmod 600 "${LOG_FILE}"
+
+        # 3. SSH banner: prefer the drop-in; fall back to a fenced append.
+        DROPIN_USED=""
+        if sshd_includes_dropin_dir; then
+            mkdir -p "${SSHD_CONFD}"
+            cat > "${DROPIN}" <<EOF
+# Managed by the recuse-ssh package. Do not edit; removed on package removal.
+# Pre-auth banner: emits the Recuse sentinel + notice before authentication.
+Banner ${BANNER_DST}
+EOF
+            chmod 644 "${DROPIN}"
+            DROPIN_USED="yes"
+        else
+            echo "recuse-ssh: NOTE — ${SSHD_CONFIG} does not Include ${SSHD_CONFD}/*.conf;" >&2
+            echo "recuse-ssh:        falling back to a marker-fenced append to ${SSHD_CONFIG}." >&2
+            append_managed_block "${SSHD_CONFIG}" "Banner ${BANNER_DST}"
+        fi
+
+        # 4. PAM session hook (idempotent, marker-fenced)
+        if [ -f "${PAM_SSHD}" ]; then
+            append_managed_block "${PAM_SSHD}" \
+                "session    optional     pam_exec.so quiet stdout ${HOOK}"
+        else
+            echo "recuse-ssh: WARNING — ${PAM_SSHD} not found; PAM hook not wired." >&2
+        fi
+
+        # 5. validate sshd config BEFORE reloading; back out on failure.
+        if command -v sshd >/dev/null 2>&1; then
+            if sshd -t 2>/dev/null; then
+                reload_ssh || \
+                    echo "recuse-ssh: WARNING — could not reload ssh; reload it manually." >&2
+            else
+                echo "recuse-ssh: ERROR — 'sshd -t' failed after our changes; backing them out." >&2
+                if [ -n "${DROPIN_USED}" ]; then
+                    rm -f "${DROPIN}"
+                else
+                    remove_managed_block "${SSHD_CONFIG}"
+                fi
+                remove_managed_block "${PAM_SSHD}"
+                echo "recuse-ssh: backed out the banner/PAM changes; ssh left as it was." >&2
+                echo "recuse-ssh: review ${SSHD_CONFIG} (and any pre-existing errors there)," >&2
+                echo "recuse-ssh: then run: sudo dpkg-reconfigure recuse-ssh" >&2
+            fi
+        else
+            echo "recuse-ssh: WARNING — sshd not found on PATH; skipped validation/reload." >&2
+        fi
+
+        # 6. loud warning if still broadcasting the example.com default.
+        REF_VAL=""
+        if [ -r "${CONF_FILE}" ]; then
+            # shellcheck disable=SC1090
+            REF_VAL="$(. "${CONF_FILE}" 2>/dev/null; printf '%s' "${RECUSE_REF:-}")"
+        fi
+        if [ "${REF_VAL}" = "${EXAMPLE_REF_DEFAULT}" ] || [ -z "${REF_VAL}" ]; then
+            echo "" >&2
+            echo "============================================================================" >&2
+            echo "  recuse-ssh: RECUSE_REF is still the example.com DEFAULT." >&2
+            echo "  Your banner points agents at ${EXAMPLE_REF_DEFAULT}," >&2
+            echo "  a domain you do not control. Set your real policy URL:" >&2
+            echo "" >&2
+            echo "    sudo sudoedit ${CONF_FILE}      # set RECUSE_REF=https://YOURDOMAIN/..." >&2
+            echo "    sudo dpkg-reconfigure recuse-ssh   # (or: sudo ${RENDER})" >&2
+            echo "============================================================================" >&2
+            echo "" >&2
+        fi
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

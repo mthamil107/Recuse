@@ -1,0 +1,130 @@
+name: build-deb
+
+# Build, smoke-test, and (on a tag) release the recuse-ssh Debian package.
+#
+# Triggers:
+#   * push of a tag matching v*  -> build + smoke test + attach .deb to the
+#     GitHub release for that tag.
+#   * workflow_dispatch          -> build + smoke test only (run it manually,
+#     e.g. against the existing v0.1.0 tag, to verify without cutting a release).
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to attach assets to the release
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            debhelper devscripts build-essential openssh-server
+
+      - name: Build the .deb
+        working-directory: packaging/deb
+        run: |
+          dpkg-buildpackage -b -us -uc
+          echo "--- built artifacts (in parent dir) ---"
+          ls -l ../recuse-ssh_*_all.deb
+
+      - name: Collect the .deb
+        id: collect
+        run: |
+          mkdir -p dist
+          cp packaging/recuse-ssh_*_all.deb dist/
+          deb="$(ls dist/recuse-ssh_*_all.deb | head -n1)"
+          echo "deb_path=${deb}" >> "$GITHUB_OUTPUT"
+          ls -l dist/
+
+      - name: Smoke test — install
+        run: |
+          set -euo pipefail
+          deb="${{ steps.collect.outputs.deb_path }}"
+          echo "::group::apt-get install ./${deb}"
+          # apt resolves the runtime deps (openssh-server, libpam-modules).
+          sudo apt-get install -y "./${deb}"
+          echo "::endgroup::"
+
+          echo "--- assert: banner was rendered ---"
+          test -f /etc/recuse/banner.txt
+          head -n1 /etc/recuse/banner.txt | grep -q '^RECUSE/0.1 '
+          echo "OK: /etc/recuse/banner.txt rendered:"
+          sed 's/^/    /' /etc/recuse/banner.txt
+
+          echo "--- assert: sshd_config.d drop-in exists ---"
+          test -f /etc/ssh/sshd_config.d/recuse.conf
+          grep -q '^Banner /etc/recuse/banner.txt' /etc/ssh/sshd_config.d/recuse.conf
+          echo "OK: drop-in present"
+
+          echo "--- assert: PAM hook wired ---"
+          grep -q 'pam_exec.so .*\/usr/sbin/recuse-pam-hook' /etc/pam.d/sshd
+          echo "OK: pam_exec line present in /etc/pam.d/sshd"
+
+          echo "--- assert: PAM hook + helper installed and executable ---"
+          test -x /usr/sbin/recuse-pam-hook
+          test -x /usr/share/recuse/render-banner
+          echo "OK"
+
+          echo "--- assert: sshd -t passes with our config ---"
+          sudo sshd -t
+          echo "OK: sshd -t passed"
+
+      - name: Smoke test — remove
+        run: |
+          set -euo pipefail
+          echo "::group::apt-get remove recuse-ssh"
+          sudo apt-get remove -y recuse-ssh
+          echo "::endgroup::"
+
+          echo "--- assert: drop-in removed ---"
+          test ! -e /etc/ssh/sshd_config.d/recuse.conf
+          echo "OK: drop-in gone"
+
+          echo "--- assert: PAM marker block removed ---"
+          if grep -q 'recuse-ssh adapter (managed)' /etc/pam.d/sshd; then
+            echo "FAIL: PAM marker block still present after remove" >&2
+            exit 1
+          fi
+          echo "OK: PAM block gone"
+
+          echo "--- assert: sshd -t still passes after removal ---"
+          sudo sshd -t
+          echo "OK: sshd -t passed post-removal"
+
+      - name: Smoke test — purge leaves audit log
+        run: |
+          set -euo pipefail
+          # Seed a fake audit record so we can prove purge preserves it.
+          sudo mkdir -p /var/log/recuse
+          echo '{"event":"connect","test":true}' | sudo tee -a /var/log/recuse/ssh.json >/dev/null
+          sudo apt-get purge -y recuse-ssh
+          echo "--- assert: /etc/recuse cleaned on purge ---"
+          test ! -e /etc/recuse/recuse.conf
+          echo "OK: conffile removed on purge"
+          echo "--- assert: audit log preserved on purge ---"
+          test -f /var/log/recuse/ssh.json
+          echo "OK: /var/log/recuse/ssh.json preserved"
+
+      - name: Upload .deb as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: recuse-ssh-deb
+          path: dist/recuse-ssh_*_all.deb
+          if-no-files-found: error
+
+      - name: Attach .deb to the GitHub release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/recuse-ssh_*_all.deb
+          fail_on_unmatched_files: true
