@@ -131,7 +131,9 @@ jobs:
           test ! -e /etc/recuse/recuse.conf
           echo "OK: conffile removed on purge"
           echo "--- assert: audit log preserved on purge ---"
-          test -f /var/log/recuse/ssh.json
+          # /var/log/recuse is 0700 root, so stat it as root (a non-root test -f
+          # would fail to traverse the dir even though the file is preserved).
+          sudo test -f /var/log/recuse/ssh.json
           echo "OK: /var/log/recuse/ssh.json preserved"
 
       - name: Upload .deb as a workflow artifact
