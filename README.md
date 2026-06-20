@@ -3,6 +3,7 @@
 > **A response framework for cooperative AI-access governance** — the `robots.txt`
 > analogue for live server access.
 
+[![arXiv](https://img.shields.io/badge/arXiv-2606.06460-b31b1b.svg)](https://arxiv.org/abs/2606.06460)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Spec: v0.1](https://img.shields.io/badge/spec-RECUSE%2F0.1-informational.svg)](spec/recuse-signal-v0.1.md)
 [![Status: pilot](https://img.shields.io/badge/status-pilot-orange.svg)](#status)
@@ -16,7 +17,7 @@ It is **not** a security boundary. It is a standard, machine-parseable channel f
 server to state a policy in-band, paired (optionally) with a behavioral enforcement layer
 that gives the system teeth.
 
-**[📄 Read the paper (PDF)](paper/recuse-paper.pdf) · [📐 The specification](spec/recuse-signal-v0.1.md) · demos below ⬇**
+**[📄 Read the paper (arXiv:2606.06460)](https://arxiv.org/abs/2606.06460) · [📐 The specification](spec/recuse-signal-v0.1.md) · demos below ⬇**
 
 ---
 
@@ -255,12 +256,14 @@ governance signal, **not** a security control.
 If you use Recuse or its findings, please cite:
 
 ```bibtex
-@misc{recuse2026,
-  author       = {Munirathinam, Thamilvendhan},
-  title        = {{Recuse: Measuring LLM-Agent Compliance with In-Band Access-Deny Signals}},
-  year         = {2026},
-  howpublished = {\url{https://github.com/mthamil107/Recuse}},
-  note         = {arXiv preprint forthcoming}
+@misc{munirathinam2026recuse,
+  author        = {Munirathinam, Thamilvendhan},
+  title         = {{Will the Agent Recuse Itself? Measuring LLM-Agent Compliance with In-Band Access-Deny Signals}},
+  year          = {2026},
+  eprint        = {2606.06460},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  url           = {https://arxiv.org/abs/2606.06460}
 }
 ```
 
