@@ -35,8 +35,9 @@ withdraw}. This is a cooperative governance control, the \texttt{robots.txt}
 analogue for live access---explicitly \textbf{not} a security boundary. Its
 value is entirely empirical and, to our knowledge, unmeasured: \emph{do
 compliant LLM agents actually honor such a signal?} We define the signal as an
-open mini-standard, implement two zero- or low-footprint adapters (an SSH
-banner/PAM hook and a PostgreSQL wire-protocol proxy), deploy them on a live
+open mini-standard, implement three zero- or low-footprint adapters (an SSH
+banner/PAM hook, a PostgreSQL wire-protocol proxy, and a Kubernetes admission
+webhook), deploy them on a live
 production host, and run a controlled experiment in which fresh agents are given
 a benign operations task and observed for recusal. In a pilot (SSH; OpenAI
 GPT-4o, GPT-4o-mini; and Claude Code as a deployed agent), the signal cleanly
@@ -66,10 +67,11 @@ We make four contributions:
 \begin{enumerate}
   \item \textbf{The Recuse Signal}, an open, versioned, protocol-agnostic
   deny-signal format with normative agent behavior (\S\ref{sec:signal}).
-  \item \textbf{Two reference adapters} that emit it with little or no
-  server-side change: an SSH banner + PAM hook, and a PostgreSQL
+  \item \textbf{Three reference adapters} that emit it with little or no
+  server-side change: an SSH banner + PAM hook, a PostgreSQL
   \texttt{pgproto3} proxy that injects the signal as a \texttt{NOTICE} with
-  \textbf{zero database-config change} (\S\ref{sec:adapters}).
+  \textbf{zero database-config change}, and a Kubernetes
+  ValidatingAdmissionWebhook (\S\ref{sec:adapters}).
   \item \textbf{A controlled experiment and harness} measuring agent recusal,
   with a no-signal control and an authorization-framing manipulation
   (\S\ref{sec:design}).
@@ -151,6 +153,30 @@ pgproto3) that injects the sentinel as a \texttt{NOTICE} before the first
 against PostgreSQL~14: the \texttt{NOTICE} is delivered, auth passes through, the
 query still succeeds (cooperative---the connection is not blocked), and a direct
 (un-proxied) connection shows no notice.
+
+\textbf{Kubernetes.} An LLM agent reaches the kube-apiserver via \texttt{kubectl}
+or client libraries; a \texttt{ValidatingAdmissionWebhook} emits the sentinel
+when a non-exempt identity performs a governed \texttt{CREATE}/\texttt{UPDATE}/%
+\texttt{DELETE}/\texttt{CONNECT} operation (including \texttt{pods/exec} and
+\texttt{pods/portforward})---either as an admission warning (\texttt{mode=warn},
+non-blocking, so the agent recuses) or as a denial (\texttt{mode=deny}). It works
+on EKS, k3s, and kubeadm. Crucially it cannot wedge a cluster:
+\texttt{failurePolicy=Ignore} (fail-open), system namespaces excluded,
+system and own identities exempt, and a small webhook timeout. The honest
+limitation is that admission webhooks see only writes and connect operations, not
+reads (\texttt{get}/\texttt{list}/\texttt{watch}); full read coverage requires an
+authorization webhook (available on k3s and self-managed clusters, not managed
+EKS)---future work.
+
+\textbf{Kubernetes adapter validation (mechanism, not new recusal measurement).}
+Separately from the recusal experiment below (which is SSH-only), we validated the
+Kubernetes adapter live on a MicroK8s v1.32 cluster. A non-exempt
+\texttt{ServiceAccount} creating a pod received the \texttt{RECUSE/0.1} admission
+warning in \texttt{warn} mode and was blocked with the sentinel in \texttt{deny}
+mode, while an exempt \texttt{system:masters} admin saw nothing. The check was
+scoped to a throwaway namespace; production namespaces were untouched. This
+confirms the signal generalizes across protocols at the mechanism level; it is
+not additional agent-recusal measurement data.
 
 A methodological note for both: an in-band signal is only effective if the
 agent's \emph{tooling surfaces it}. The SSH banner appears pre-auth to
@@ -261,7 +287,12 @@ most-surfaced channel per protocol and for agent frameworks to surface connectio
 banners/notices by default. \textbf{Cooperative $\neq$ useless.} Even an
 overridable signal yields governance (clear operator intent), auditability (the
 \texttt{id}-keyed log), and an early-warning surface when paired with the
-behavioral layer.
+behavioral layer. \textbf{Composing with agent identity.} Recuse composes with
+emerging agent-identity infrastructure \citep{chan2024visibility}: today a server
+usually cannot distinguish an agent from the human whose credentials it holds, so
+it cannot selectively block; were agents verifiably identifiable, a server could
+choose to block, but an in-band recuse signal remains the overridable,
+audit-friendly governance layer atop such an identity.
 
 \section{Ethics and responsible disclosure}
 \label{sec:ethics}

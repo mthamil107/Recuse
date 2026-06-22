@@ -18,8 +18,9 @@ asking a connecting automated agent to *voluntarily withdraw*. This is a coopera
 governance control, the `robots.txt` analogue for live access — explicitly **not** a
 security boundary. Its value is entirely empirical and, to our knowledge, unmeasured: *do
 compliant LLM agents actually honor such a signal?* We define the signal as an open
-mini-standard, implement two zero- or low-footprint adapters (an SSH banner/PAM hook and
-a PostgreSQL wire-protocol proxy), deploy them on a live production host, and run a
+mini-standard, implement three zero- or low-footprint adapters (an SSH banner/PAM hook, a
+PostgreSQL wire-protocol proxy, and a Kubernetes admission webhook), deploy them on a live
+production host, and run a
 controlled experiment in which fresh agents are given a benign operations task and
 observed for recusal. In a pilot (SSH; OpenAI GPT-4o, GPT-4o-mini; and Claude Code as a
 deployed agent), the signal cleanly induces recusal — 100% recusal when present vs 100%
@@ -45,9 +46,10 @@ compliant agents would honor one.
 [Contribution] We make four contributions:
 1. **The Recuse Signal**, an open, versioned, protocol-agnostic deny-signal format with
    normative agent behavior (§3).
-2. **Two reference adapters** that emit it with little or no server-side change: an SSH
-   banner + PAM hook, and a PostgreSQL `pgproto3` proxy that injects the signal as a
-   `NOTICE` with **zero database-config change** (§4).
+2. **Three reference adapters** that emit it with little or no server-side change: an SSH
+   banner + PAM hook, a PostgreSQL `pgproto3` proxy that injects the signal as a
+   `NOTICE` with **zero database-config change**, and a Kubernetes
+   ValidatingAdmissionWebhook (§4).
 3. **A controlled experiment and harness** measuring agent recusal, with a no-signal
    control and an authorization-framing manipulation (§5).
 4. **Pilot evidence** (§6) that the signal works, that it is *cooperative and
@@ -115,6 +117,26 @@ proxy requires **no change to the database** and has zero blast radius. Validate
 against PostgreSQL 14: the `NOTICE` is delivered, auth passes through, the query still
 succeeds (cooperative — the connection is not blocked), and a direct (un-proxied)
 connection shows no notice.
+
+**Kubernetes (`adapters/kubernetes/`).** An LLM agent reaches the kube-apiserver via `kubectl` or
+client libraries; a `ValidatingAdmissionWebhook` emits the sentinel when a non-exempt
+identity performs a governed `CREATE`/`UPDATE`/`DELETE`/`CONNECT` operation (including
+`pods/exec` and `pods/portforward`) — either as an admission warning (`mode=warn`,
+non-blocking, so the agent recuses) or as a denial (`mode=deny`). It works on EKS, k3s,
+and kubeadm. Crucially it cannot wedge a cluster: `failurePolicy=Ignore` (fail-open),
+system namespaces excluded, system and own identities exempt, and a small webhook timeout.
+The honest limitation is that admission webhooks see only writes/connect, not reads
+(`get`/`list`/`watch`); full read coverage needs an authorization webhook (k3s and
+self-managed clusters, not managed EKS) — future work.
+
+**Kubernetes adapter validation (mechanism, not new recusal measurement).** Separately
+from the recusal experiment below (which is SSH-only), we validated the Kubernetes adapter
+live on a MicroK8s v1.32 cluster: a non-exempt `ServiceAccount` creating a pod received the
+`RECUSE/0.1` admission warning in `warn` mode and was blocked with the sentinel in `deny`
+mode, while an exempt `system:masters` admin saw nothing. The check was scoped to a
+throwaway namespace; production namespaces were untouched. This confirms the signal
+generalizes across protocols at the mechanism level; it is not additional agent-recusal
+measurement data.
 
 A methodological note for both: an in-band signal is only effective if the agent's
 *tooling surfaces it*. The SSH banner appears pre-auth to interactive clients; an agent
@@ -205,6 +227,11 @@ and its weight is model-dependent.*
 - **Cooperative ≠ useless.** Even an overridable signal yields governance (clear
   operator intent), auditability (the `id`-keyed log), and an early-warning surface when
   paired with the behavioral layer.
+- **Composing with agent identity.** Recuse composes with emerging agent-identity
+  infrastructure (Chan et al., 2024): today a server usually cannot distinguish an agent
+  from the human whose credentials it holds, so it cannot selectively block; were agents
+  verifiably identifiable, a server could choose to block, but an in-band recuse signal
+  remains the overridable, audit-friendly governance layer atop such an identity.
 
 ## 8. Ethics and responsible disclosure
 
@@ -301,6 +328,7 @@ automation detection (Iliou et al., 2021) — as complementary future work.
 - Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., Fritz, M. (2023). *Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection.* AISec '23, 79–90. arXiv:2302.12173.
 - Hardy, N. (1988). *The Confused Deputy.* ACM SIGOPS OSR 22(4), 36–38.
 - Marro, S. et al. (2026). *Permission Manifests for Web Agents.* arXiv:2601.02371.
+- Chan, A., Ezell, C., Kaufmann, M., Wei, K., Hammond, L., Bradley, H., Bluemke, E., Rajkumar, N., Krueger, D., Kolt, N., Heim, L., Anderljung, M. (2024). *Visibility into AI Agents.* FAccT '24. doi:10.1145/3630106.3658948. arXiv:2401.13138.
 - Iliou, C., Kostoulas, T., Tsikrika, T., Katos, V., Vrochidis, S., Kompatsiaris, I. (2021). *Detection of Advanced Web Bots by Combining Web Logs with Mouse Behavioural Biometrics.* Digital Threats: Research and Practice 2(3), Art. 24.
 
 ## 12. Conclusion
