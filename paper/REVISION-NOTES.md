@@ -26,5 +26,20 @@ was not yet written into the paper.
 
 ---
 
+## Related work / citations to add
+
+Cite Alan Chan's authorization-and-identity line of work — it is the *enforcement/
+identity* counterpart to Recuse's *cooperative signal*, and supports the discussion
+point that "identification enables enforcement; recusal is the cooperative layer on
+top." Verify full bib fields (authors, arXiv ID, venue) at add-time:
+
+- **"Authenticated Delegation and Authorized AI Agents"** (2025) — most relevant; how an
+  agent proves it is authorized. Pairs directly with our "on-host policy vs. the prompt's
+  authorization claim" finding (F3).
+- **"IDs for AI Systems"** (Chan et al., 2024) — agent identifiers; the "IDs that enable
+  blocking" Alan raised. Cite alongside `chan2024visibility`.
+- Optional framing anchor: **"Open Problems in Technical AI Governance"** (2024) to situate
+  Recuse within the technical-governance agenda.
+
 <!-- Add further revision notes below as they come up (scaled study, more models,
 signal variants, multi-rater judge coding, etc.). -->
