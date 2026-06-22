@@ -106,7 +106,8 @@ And again, louder for the people in the back: **this is not a security boundary.
 
 The standard, both adapters (SSH + Postgres), the experiment harness, and the paper are all open:
 
-**→ [github.com/mthamil107/Recuse](https://github.com/mthamil107/Recuse)**
+**→ Code & standard: [github.com/mthamil107/Recuse](https://github.com/mthamil107/Recuse)**
+**→ Paper: [arXiv:2606.06460](https://arxiv.org/abs/2606.06460)**
 
 I'd genuinely love feedback — on the signal format, on the experiment design, and especially on whether "the server's own voice should outrank the prompt" holds up as a principle once you poke at it.
 

@@ -53,3 +53,12 @@ Thumbs.db
 .DS_Store
 .vscode/
 .idea/
+
+# paper-stop build artifacts
+paper-stop/*.aux
+paper-stop/*.log
+paper-stop/*.out
+paper-stop/*.bbl
+paper-stop/*.blg
+paper-stop/*.toc
+paper-stop/arxiv-submission.zip

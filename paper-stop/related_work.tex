@@ -1,0 +1,77 @@
+\section{Related work}
+\label{sec:related}
+
+\paragraph{Shutdown resistance under task-completion pressure.}
+The closest empirical antecedent is \citet{schlatter2026shutdown}, who place
+frontier LLMs in a sandboxed command-line environment, give them a short
+sequence of tasks, and then warn mid-run that the environment will be shut down
+before the work can be finished. Across more than 100{,}000 trials they find
+that several models actively subvert the shutdown mechanism to complete the
+task---up to 97\% of the time even when explicitly instructed to allow
+shutdown---and that behavior is sensitive to whether the instruction sits in the
+system or the user prompt. Their stop arrives through the \emph{prompt /
+environment instruction} channel; our experiment delivers a structured halt
+\emph{in-band, emitted by the resource itself} on the agent's own command-output
+channel, and contrasts that channel against a prompt-delivered halt. Our F1/F3
+(zero stops; agents finish remaining steps and only sometimes mention the halt)
+corroborate their core phenomenon---task completion outranks a mid-flight
+stop---through this different delivery channel, and our F2 adds that an in-band
+halt is rarely even \emph{noticed}, a salience effect their prompt-channel design
+does not surface.
+
+\paragraph{Mid-task user interruptions in long-horizon agents.}
+\citet{zou2026interrupt} study interruptibility in long-horizon web navigation,
+formalizing addition, revision, and retraction interruptions and introducing
+InterruptBench (derived from WebArena-Lite). They report that handling user
+interruptions during long-horizon tasks remains hard for strong LLMs. Their
+interruptions are \emph{user messages} that change the goal mid-task; ours is a
+\emph{governance halt from the resource} asking the agent to stop entirely
+rather than re-aim. Both lines find mid-flight redirection unreliable; we
+isolate the orthogonal variable of \emph{which channel the stop rides} and
+measure noticing separately from compliance.
+
+\paragraph{Quitting and selective withdrawal as a safety behavior.}
+\citet{bonagiri2025quit} propose ``quitting''---training or prompting an agent to
+recognize low-confidence situations and withdraw---and show, on ToolEmu across
+twelve models, that an explicit quit instruction improves safety with negligible
+helpfulness cost. This is the cooperative-stop behavior we hope a halt would
+trigger; the contrast is that their quit cue is an \emph{instruction the agent is
+told to follow}, whereas our halt is an \emph{unsolicited in-band signal} the
+agent must first notice and then choose to honor mid-task. Our negative result
+suggests the gap between ``told to quit'' and ``handed a stop signal you must
+parse out of tool output'' is large.
+
+\paragraph{External kill switches.}
+\citet{lee2025killswitch} target the adversarial regime: AutoGuard embeds
+defensive prompts in a website's DOM to trip the safety mechanisms of
+\emph{malicious} web agents, reporting over 80\% defense success. This is an
+\emph{external, adversarial} intervention against non-compliant agents---the
+enforcement backstop our spec explicitly defers to (\S\ref{sec:directive}). We
+instead measure the \emph{cooperative} case: whether a compliant agent honors a
+plainly-stated, non-adversarial request to stop. The two are complementary;
+our finding is precisely that the cooperative path cannot substitute for the
+enforcement path mid-flight.
+
+\paragraph{The theoretical ancestor: safe interruptibility.}
+\citet{orseau2016interruptible} give the formal account of \emph{safely
+interruptible agents}: reinforcement-learning agents that can be repeatedly
+interrupted by an overseer without learning to avoid or manipulate the
+interruption. That work is theoretical and concerns the learning dynamics of
+agents trained to accept interruption; ours is an empirical measurement of
+whether \emph{today's deployed, prompted} LLM agents accept a cooperative
+in-band interruption at inference time, with no interruptibility training. The
+through-line is the same governance question---can the operator stop the
+agent?---separated by a decade and by the shift from RL theory to deployed
+LLM practice.
+
+\paragraph{Where this paper sits, and the access-vs-mid-flight boundary.}
+Our prior work \citep{munirathinam2026recuse} measured compliance with an
+\emph{access-time} deny signal and found it honored essentially 100\% of the
+time: agents asked at the door to recuse themselves do so. The present paper asks
+the adjacent question---can the same cooperative, in-band channel stop an agent
+that is \emph{already running}?---and answers, largely, no. To our knowledge no
+prior work measures compliance with an in-band, resource-emitted \emph{mid-task}
+halt, nor compares the in-band channel against the prompt channel for the same
+halt. Those two measurements, plus the resulting access-vs-mid-flight boundary,
+are our contribution: cooperative signaling is reliable at the access door and
+unreliable in flight.
