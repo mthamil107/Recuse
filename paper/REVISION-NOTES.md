@@ -4,7 +4,30 @@ Things to fold into the **next substantive revision** of `recuse-paper.tex` (e.g
 scaled study or a workshop version). Batch these — avoid churny single-day arXiv
 replacements.
 
+> **Status (2026-06-24): arXiv activity PAUSED by author choice** (after AMP +
+> prompt-injection were rejected, to let the account cool off). Do not submit/replace
+> anything on arXiv until the author re-opens this.
+
 ---
+
+## TODO #0 (PRIMARY) — merge the stop-signal study into a v3 of arXiv:2606.06460
+
+arXiv moderators **declined the standalone stop paper** (`submit/7743026`) as too
+overlapping with 2606.06460, and **explicitly invited** folding it into a replacement of
+that paper (no privilege warning — a sanctioned path). When arXiv activity resumes, build
+**v3 of `recuse-paper.tex`** that incorporates the halt/stop work:
+
+- Source material is ready in `paper-stop/` (recuse-stop.tex/.md, figure `stop_rates.png`)
+  and `spec/recuse-signal-v0.2.md` (the `halt` directive).
+- Fold in: the `halt` directive (RECUSE/0.2), the stop experiment + results
+  (in-band 0/20 stopped & 1/20 acknowledged; prompt 0/20 & 20/20; control 20/20), the
+  boundary finding (cooperative signals work at the access door ~100% but NOT mid-flight,
+  0%), and the new verified citations (Schlatter shutdown-resistance 2509.14260,
+  InterruptBench 2604.00892, Bonagiri 2510.16492, Lee&Park 2511.13725, Orseau&Armstrong
+  UAI 2016) — already in `paper-stop/references.bib`.
+- Title decision pending: keep "...In-Band Access-Deny Signals" vs lightly broaden to
+  "...In-Band Access Signals" / "...Governance Signals" to cover deny + halt.
+- Honesty: keep the deny=100% vs halt=0% boundary framing; do not overclaim.
 
 ## Discussion (§7): the signal as a guardrail for *compliant* agents
 
