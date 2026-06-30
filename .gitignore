@@ -62,3 +62,12 @@ paper-stop/*.bbl
 paper-stop/*.blg
 paper-stop/*.toc
 paper-stop/arxiv-submission.zip
+
+# paper-tmlr build artifacts + bundle
+paper-tmlr/*.aux
+paper-tmlr/*.log
+paper-tmlr/*.out
+paper-tmlr/*.bbl
+paper-tmlr/*.blg
+paper-tmlr/*.toc
+paper-tmlr/tmlr-submission.zip
