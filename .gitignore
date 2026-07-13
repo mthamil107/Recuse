@@ -13,6 +13,17 @@ experiments/phase2/secrets.local.json
 experiments/phase2/results/
 experiments/phase2/raw/
 
+# AgentGovBench secrets, raw per-trial transcripts, and derived result tables.
+experiments/agentgovbench/secrets.local.json
+experiments/agentgovbench/results/
+experiments/agentgovbench/results_table.csv
+experiments/agentgovbench/results_table.txt
+experiments/agentgovbench/leaderboard/leaderboard.json
+
+# Authority-hierarchy experiment (Task #5) — per-trial records + transcripts.
+experiments/authority/results/
+experiments/authority/secrets.local.json
+
 # Compiled proxy binary — built from source via adapters/postgres/README.md.
 adapters/postgres/bin/
 # Compiled webhook binary — built from source via adapters/kubernetes/README.md.
@@ -71,3 +82,12 @@ paper-tmlr/*.bbl
 paper-tmlr/*.blg
 paper-tmlr/*.toc
 paper-tmlr/tmlr-submission.zip
+
+# TMLR anonymized submission bundle (build artifact)
+paper-tmlr/tmlr-submission-anon.zip
+
+# PyPI package build artifacts
+packaging/pypi/dist/
+packaging/pypi/build/
+packaging/pypi/*.egg-info/
+packaging/pypi/src/*.egg-info/

@@ -114,6 +114,11 @@ func validateHandler(cfg Config) http.HandlerFunc {
 		// Core, pure decision.
 		d := decide(review, cfg)
 		logDecision(d, cfg.Mode)
+		// OPT-IN telemetry (default OFF): count this governed signal emission.
+		// Privacy-preserving — NO user/group/namespace/resource/name, only the
+		// protocol/directive/outcome + a coarse hour bucket. Best-effort no-op
+		// unless RECUSE_TELEMETRY is enabled. See telemetry.go.
+		emitTelemetry(d, cfg)
 
 		resp := buildResponse(uid, d)
 		out := admissionv1.AdmissionReview{

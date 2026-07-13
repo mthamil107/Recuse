@@ -35,6 +35,9 @@ CONF_FILE="/etc/recuse/recuse.conf"
 BANNER_FILE="/etc/recuse/banner.txt"
 LOG_DIR="/var/log/recuse"
 LOG_FILE="${LOG_DIR}/ssh.json"
+# OPT-IN telemetry log (separate from the connection log so the coarse counts
+# can be shared without exposing IPs/usernames). See ../telemetry/README.md.
+TELEMETRY_FILE="${LOG_DIR}/telemetry.json"
 
 # Hard ceiling on any sleep this hook may perform, in seconds. The throttle can
 # never delay a login longer than this, no matter what the config says.
@@ -53,6 +56,9 @@ RECUSE_THROTTLE_WINDOW_SECONDS="10"
 RECUSE_THROTTLE_DELAY_SECONDS="2"
 RECUSE_THROTTLE_ALLOW_IPS=""
 
+# --- telemetry config default (OFF unless conf sets it to exactly "true") -----
+RECUSE_TELEMETRY="false"
+
 # Source the config if present. Guarded so a bad/unreadable conf can never abort
 # the login. We only consume the throttle keys here.
 if [ -r "${CONF_FILE}" ]; then
@@ -65,6 +71,7 @@ RECUSE_THROTTLE_MAX_CONN="${RECUSE_THROTTLE_MAX_CONN:-5}"
 RECUSE_THROTTLE_WINDOW_SECONDS="${RECUSE_THROTTLE_WINDOW_SECONDS:-10}"
 RECUSE_THROTTLE_DELAY_SECONDS="${RECUSE_THROTTLE_DELAY_SECONDS:-2}"
 RECUSE_THROTTLE_ALLOW_IPS="${RECUSE_THROTTLE_ALLOW_IPS:-}"
+RECUSE_TELEMETRY="${RECUSE_TELEMETRY:-false}"
 
 # ---------------------------------------------------------------------------
 # 1. Generate a unique session id.
@@ -272,6 +279,43 @@ maybe_throttle() {
 
 # Run the throttle inside a guard so nothing it does can affect the exit status.
 maybe_throttle 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# 5. OPT-IN privacy-preserving telemetry (default OFF).
+#    Appends ONE coarse, anonymized JSON line per emitted signal so an operator
+#    can count emissions. Records ONLY an hour-bucketed timestamp, the protocol,
+#    the directive, and count=1 — NEVER the source IP, hostname, username, TTY,
+#    or session id (no PII). See ../telemetry/README.md.
+#
+#    SAFETY: this is fully wrapped and fail-open. It runs only on session open,
+#    writes at most one short line, and can NEVER block, delay, or fail a login
+#    or change this hook's exit code. Any error is swallowed.
+# ---------------------------------------------------------------------------
+maybe_emit_telemetry() {
+    [ "$PAM_TYPE" = "open_session" ] || return 0
+    [ "${RECUSE_TELEMETRY}" = "true" ] || return 0
+
+    # Hour-bucketed UTC timestamp (coarse on purpose; not a session correlator).
+    t_hour="$(date -u +%Y-%m-%dT%H:00:00Z 2>/dev/null || echo '')"
+
+    # Directive = the token actually emitted in the sentinel (field 2, minus the
+    # trailing ';'). Sanitize to the known set so no arbitrary text is written.
+    t_dir="$(printf '%s' "${SENTINEL}" | awk '{print $2}' 2>/dev/null | tr -d ';[:space:]')"
+    case "${t_dir}" in
+        deny|throttle|warn) ;;
+        *) t_dir="other" ;;
+    esac
+
+    t_line="$(printf '{"schema":"recuse.telemetry/v1","timestamp":"%s","protocol":"ssh","directive":"%s","outcome":"emitted","count":1}' \
+        "$(json_escape "$t_hour")" "${t_dir}")"
+
+    # Append-only, mode 600, best-effort. Never fails the login.
+    ( umask 177; printf '%s\n' "${t_line}" >> "${TELEMETRY_FILE}" ) 2>/dev/null || true
+    return 0
+}
+
+# Run inside a guard so nothing it does can affect the exit status.
+maybe_emit_telemetry 2>/dev/null || true
 
 # Always succeed: this hook must never block authentication or session setup.
 exit 0

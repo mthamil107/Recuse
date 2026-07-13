@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recuse-signal"
+version = "0.3.0"
+description = "Parse/build RECUSE governance signals and enforce agent halt mid-flight."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [
+    { name = "Thamilvendhan Munirathinam", email = "mthamil107@gmail.com" },
+]
+maintainers = [
+    { name = "Thamilvendhan Munirathinam", email = "mthamil107@gmail.com" },
+]
+keywords = [
+    "LLM agents",
+    "AI governance",
+    "agent interruptibility",
+    "prompt injection",
+    "AI safety",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mthamil107/Recuse"
+Repository = "https://github.com/mthamil107/Recuse"
+Issues = "https://github.com/mthamil107/Recuse/issues"
+Paper = "https://arxiv.org/abs/2606.06460"
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[project.scripts]
+recuse = "recuse.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+recuse = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

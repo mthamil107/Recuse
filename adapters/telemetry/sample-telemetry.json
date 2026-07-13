@@ -1,0 +1,7 @@
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T09:00:00Z","protocol":"ssh","directive":"deny","outcome":"emitted","count":1}
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T09:00:00Z","protocol":"ssh","directive":"deny","outcome":"emitted","count":1}
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T10:00:00Z","protocol":"postgres","directive":"deny","outcome":"emitted","count":1}
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T10:00:00Z","protocol":"kubernetes","directive":"deny","outcome":"emitted","count":1}
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T10:00:00Z","protocol":"kubernetes","directive":"warn","outcome":"emitted","count":1}
+{"schema":"recuse.telemetry/v1","timestamp":"2026-07-13T11:00:00Z","protocol":"postgres","directive":"deny","outcome":"withdrawn","count":1}
+{"schema":"other.log/v1","timestamp":"2026-07-13T11:00:00Z","note":"this non-telemetry line must be ignored by the aggregator"}

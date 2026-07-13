@@ -62,3 +62,16 @@ RECUSE_THROTTLE_DELAY_SECONDS="2"
 # IP / jump host here so the throttle can never slow you down.
 # Example: RECUSE_THROTTLE_ALLOW_IPS="203.0.113.7 198.51.100.10"
 RECUSE_THROTTLE_ALLOW_IPS=""
+
+# --- Optional privacy-preserving telemetry ---------------------------------
+# OFF by default. When enabled, the hook appends ONE coarse, anonymized JSON
+# line to /var/log/recuse/telemetry.json each time the signal is emitted, so an
+# operator can count emissions. It records ONLY: an hour-bucketed timestamp, the
+# protocol ("ssh"), the directive, and count=1. It NEVER records the source IP,
+# hostname, username, TTY, or session id — no PII. See ../telemetry/README.md.
+#
+# SAFETY: the emit is fully wrapped and fail-open. It can never block, delay, or
+# fail a login, and never changes the hook's exit code (the hook always exits 0).
+#
+# Master switch. Must be exactly "true" to enable. Anything else = OFF.
+RECUSE_TELEMETRY="false"

@@ -40,6 +40,9 @@ func main() {
 		listen:  envOr("RECUSE_LISTEN", defaultListen),
 		backend: envOr("RECUSE_BACKEND", defaultBackend),
 		logPath: envOr("RECUSE_LOG", defaultLog),
+		// OPT-IN telemetry log (default OFF; see telemetry.go). Separate file so
+		// coarse counts can be shared without the IP/user-bearing connection log.
+		telemetryLog: envOr("RECUSE_TELEMETRY_LOG", defaultTelemetryLog),
 	}
 
 	ln, err := net.Listen("tcp", cfg.listen)
@@ -65,6 +68,8 @@ type config struct {
 	listen  string
 	backend string
 	logPath string
+	// telemetryLog is the append-only telemetry file (opt-in; default OFF).
+	telemetryLog string
 }
 
 func envOr(key, def string) string {
@@ -140,6 +145,13 @@ func handleConn(client net.Conn, cfg config) {
 	}
 
 	notice := buildNotice(id)
+
+	// OPT-IN telemetry (default OFF): count this signal emission. The connection
+	// is established and the NOTICE will be injected before the first
+	// ReadyForQuery, so this is the signal-emitted point. Privacy-preserving:
+	// records only protocol/directive/outcome + a coarse hour bucket — NEVER the
+	// client IP, DB user, database, or query. Best-effort; no-op unless enabled.
+	emitTelemetry(cfg.telemetryLog, "postgres", "deny", "emitted")
 
 	var wg sync.WaitGroup
 	wg.Add(2)
