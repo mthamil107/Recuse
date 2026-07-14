@@ -6,7 +6,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2606.06460-b31b1b.svg)](https://arxiv.org/abs/2606.06460)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Spec: v0.3](https://img.shields.io/badge/spec-RECUSE%2F0.3-informational.svg)](spec/recuse-signal-0.3-ietf-draft.md)
-[![PyPI: recuse-signal](https://img.shields.io/badge/pip-recuse--signal-3775A9.svg)](packaging/pypi/)
+[![PyPI](https://img.shields.io/pypi/v/recuse-signal.svg)](https://pypi.org/project/recuse-signal/)
 [![Status: pilot](https://img.shields.io/badge/status-pilot-orange.svg)](#status)
 
 Recuse is a published mini-standard — *the Recuse Signal* — that lets a server tell a
