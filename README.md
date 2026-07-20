@@ -59,21 +59,34 @@ is in [`spec/recuse-signal-v0.1.md`](spec/recuse-signal-v0.1.md) (+ `halt` in
 
 ## Python library (`pip install recuse-signal`)
 
-Parse the signal and make a running agent **actually stop** — the enforcement layer turns
-the cooperative `halt` into a guaranteed one (see [the finding](#does-it-actually-work-the-experiment)):
+Both halves of the standard, in one zero-dependency package
+([`packaging/pypi/`](packaging/pypi/), [on PyPI](https://pypi.org/project/recuse-signal/)):
+
+**Emit** the signal from your server —
 
 ```python
-from recuse import parse_signal, HaltInterceptor
+from recuse import signal_header, RecuseASGIMiddleware
+
+signal_header("deny", reason="production")     # ("Recuse-Signal", "RECUSE/0.3 deny; ...")
+app = RecuseASGIMiddleware(app, "deny", reason="production")
+```
+
+**Enforce** it in your agent — turning the cooperative `halt` into a guaranteed stop
+(see [the finding](#does-it-actually-work-the-experiment)):
+
+```python
+from recuse import parse_signal, run_guarded
 
 parse_signal("RECUSE/0.2 halt; reason=maintenance")   # -> Signal(directive='halt', ...)
 
-# Wrap an agent's tool loop; it force-stops the instant a halt appears in any tool output —
-# no agent cooperation required.
-guard = HaltInterceptor()
-guard.observe(tool_result)   # raises HaltEnforced on a RECUSE halt; no further tool runs
+# Force-stops the instant a halt appears in any tool output — no agent cooperation needed.
+result = run_guarded(step_fn, tool_fn, feed_fn)
 ```
 
-Stdlib-only, zero runtime dependencies. Package lives in [`packaging/pypi/`](packaging/pypi/).
+Also included: `Policy` (acts on all four directives; throttle is delay-only and
+hard-capped), async equivalents, **MCP** middleware, a **Claude Code** hook
+(`recuse hook`), and lazy adapters for **LangChain / OpenAI / Anthropic**. Framework
+libraries are optional extras — the core is stdlib-only.
 
 ## Install on Ubuntu (one line)
 
@@ -286,7 +299,8 @@ ships behavioral signals up.
   validated live.
 - ✅ **Agent-recusal experiment (pilot)** + paper, with exact confidence intervals.
 - ✅ **Halt enforcement** — harness-level interceptor that guarantees a running agent stops.
-- ✅ **`recuse-signal` Python library** — signal parser + halt interceptor (`pip install`).
+- ✅ **`recuse-signal` Python library** (`pip install`) — emit + parse + enforce, with
+  policy for all four directives, async, MCP, a Claude Code hook, and framework adapters.
 - ✅ **Opt-in telemetry** — privacy-preserving emission/withdrawal counters across adapters.
 - 🧰 **AgentGovBench** — cross-model, 4-protocol compliance benchmark; harness run-ready,
   live data collection pending (needs API keys + budget).

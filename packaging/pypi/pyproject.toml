@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recuse-signal"
-version = "0.3.0"
-description = "Parse/build RECUSE governance signals and enforce agent halt mid-flight."
+version = "0.4.0"
+description = "Emit, parse, and enforce RECUSE governance signals: make your LLM agent stoppable."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
@@ -20,8 +20,13 @@ keywords = [
     "LLM agents",
     "AI governance",
     "agent interruptibility",
+    "agent safety",
     "prompt injection",
     "AI safety",
+    "MCP",
+    "guardrails",
+    "tool use",
+    "robots.txt",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -49,10 +54,20 @@ Issues = "https://github.com/mthamil107/Recuse/issues"
 Paper = "https://arxiv.org/abs/2606.06460"
 
 [project.optional-dependencies]
+# The core is stdlib-only. These extras install the frameworks the optional
+# adapters duck-type against; nothing here is required at runtime, and the whole
+# test suite passes with none of them installed (that property is itself tested).
 test = ["pytest>=7.0"]
+langchain = ["langchain-core>=0.3"]
+openai = ["openai>=1.40"]
+anthropic = ["anthropic>=0.40"]
+agents = ["openai-agents>=0.1"]
+mcp = ["mcp>=1.0"]
+all = ["recuse-signal[langchain,openai,anthropic,agents,mcp]"]
 
 [project.scripts]
 recuse = "recuse.cli:main"
+recuse-hook = "recuse.hooks:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

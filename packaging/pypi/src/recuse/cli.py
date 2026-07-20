@@ -6,6 +6,8 @@ Commands::
     recuse check <file>     Scan a file for a RECUSE signal; exit non-zero on a stop.
     recuse build <directive> [--reason ...] [--ref ...] [--id ...] [--scope ...]
                             Build and print a sentinel line.
+    recuse hook             Claude Code hook: read a hook event as JSON on stdin,
+                            block the tool call if it carries a RECUSE stop signal.
     recuse version          Print the package version.
 
 Runnable as ``recuse ...`` (console script) or ``python -m recuse.cli ...``.
@@ -87,6 +89,21 @@ def _cmd_build(args) -> int:
     return 0
 
 
+def _cmd_hook(args) -> int:
+    # Delegate to the hook entry point, which owns the stdin/stdout JSON contract
+    # and the Claude Code exit-code convention (0 allow / 2 block).
+    from .hooks import main as hook_main
+
+    argv = []
+    if args.input:
+        argv += ["--input", args.input]
+    if args.fail_open:
+        argv.append("--fail-open")
+    if args.exit_zero:
+        argv.append("--exit-zero")
+    return hook_main(argv)
+
+
 def _cmd_version(args) -> int:
     print(f"recuse {__version__}")
     return 0
@@ -125,6 +142,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_build.add_argument("--recuse-version", default="0.2",
                          help="protocol version (default 0.2)")
     p_build.set_defaults(func=_cmd_build)
+
+    p_hook = sub.add_parser(
+        "hook",
+        help="Claude Code hook: block a tool call carrying a RECUSE stop signal",
+    )
+    p_hook.add_argument("--input", help="read the hook event from FILE instead of stdin")
+    p_hook.add_argument("--fail-open", action="store_true",
+                        help="allow the tool call when the event cannot be parsed")
+    p_hook.add_argument("--exit-zero", action="store_true",
+                        help="always exit 0; signal the block via stdout JSON only")
+    p_hook.set_defaults(func=_cmd_hook)
 
     p_version = sub.add_parser("version", help="print the package version")
     p_version.set_defaults(func=_cmd_version)

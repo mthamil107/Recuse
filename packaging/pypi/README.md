@@ -1,16 +1,24 @@
 # recuse-signal
 
-Parse and build **RECUSE** governance signals, and **force-stop an LLM agent
-mid-flight** when a stop signal arrives — even when the agent won't stop on its own.
+**Emit, parse, and enforce RECUSE governance signals — make your LLM agent stoppable.**
 
 `recuse-signal` is the reusable core of the [Recuse project](https://github.com/mthamil107/Recuse):
 a small, protocol-agnostic, in-band response format that a server emits to tell a
 connecting automated agent that its access is governed, plus a harness-level
 interceptor that *enforces* the stop instead of relying on the agent's cooperation.
 
-- **Zero runtime dependencies** (Python standard library only).
-- **Python 3.9+.**
-- **Apache-2.0** licensed.
+Both halves are here:
+
+- **Server side** — emit a signal over an HTTP header, a banner, or ASGI/WSGI middleware.
+- **Agent side** — parse it, act on all four directives, and *force-stop* a running loop.
+- **Where agents live** — MCP tool calls, a Claude Code hook, LangChain, OpenAI, Anthropic.
+
+Properties:
+
+- **Zero runtime dependencies** (Python standard library only). Framework adapters are
+  optional extras and are imported lazily — the test suite passes with none installed.
+- **Sync and async.**
+- **Python 3.9+.** **Apache-2.0** licensed.
 
 ## Why enforcement, not cooperation
 
@@ -140,6 +148,116 @@ except HaltEnforced as e:
 `HaltInterceptor` records `halted`, `signal`, `halt_step`, `source`,
 `actions_prevented`, and an `events` audit log.
 
+## Async
+
+Every enforcement primitive has an async twin with the same API:
+
+```python
+from recuse import AsyncHaltInterceptor, async_run_guarded
+
+result = await async_run_guarded(step_fn, tool_fn, feed_fn, max_steps=8)
+```
+
+`async_run_guarded` accepts sync *or* async callables. Tool calls within a step run
+**sequentially, never gathered** — gathering would let actions the halt forbids execute
+before the halt is seen.
+
+## Emit a signal from your server
+
+The other half of the standard: tell agents your resource is governed.
+
+```python
+from recuse import signal_header, banner_text
+
+name, value = signal_header("deny", reason="production")
+# ("Recuse-Signal", "RECUSE/0.3 deny; reason=production")
+
+banner_text("deny", reason="production")   # sentinel + human-readable notice
+```
+
+Drop-in middleware, with no framework dependency (pure ASGI/WSGI protocol):
+
+```python
+from recuse import RecuseASGIMiddleware, RecuseWSGIMiddleware
+
+app = RecuseASGIMiddleware(app, "deny", reason="production")
+# only signal for automated paths:
+app = RecuseASGIMiddleware(app, "warn", should_signal=lambda scope: scope["path"].startswith("/api"))
+```
+
+Flask and FastAPI helpers are duck-typed (neither library is imported):
+
+```python
+from recuse import flask_after_request, fastapi_dependency
+
+flask_app.after_request(flask_after_request("warn", reason="governed"))
+```
+
+Header parameters are percent-encoded, so a free-text `reason` cannot inject headers.
+
+## Act on all four directives
+
+`halt`/`deny` stop; `throttle`/`warn` are advisory. `Policy` turns a signal into an action:
+
+```python
+from recuse import Policy, default_policy, Action
+
+decision = default_policy().decide(signal)
+decision.action        # Action.STOP / THROTTLE / WARN / PROCEED
+default_policy().apply(signal)   # sleeps for throttle, logs for warn, raises for stop
+```
+
+**Throttle is delay-only and hard-capped** (10s default, 60s absolute ceiling that
+configuration cannot raise, re-clamped at the sleep site) — a server cannot stall your
+agent indefinitely. Unknown or malformed directives **fail closed to STOP**. Every
+decision emits a structured event to the `recuse.policy` logger and an optional
+`on_event` callback.
+
+## MCP tool calls
+
+```python
+from recuse.mcp import RecuseMCPMiddleware, guard_tool_result
+
+guarded = RecuseMCPMiddleware(call_tool)      # sync or async
+result = guarded("read_file", {"path": "..."})  # raises HaltEnforced on a halt
+```
+
+`guard_tool_result` understands MCP content-block shapes (`{"content": [{"type": "text",
+...}]}`), `isError` results, `structuredContent`, and pydantic-style objects. Once halted,
+the middleware refuses to invoke *any* tool — including tools on other servers sharing the
+interceptor.
+
+## Claude Code hook
+
+Block a tool call whose output carries a stop signal:
+
+```bash
+recuse hook            # reads the hook event JSON on stdin
+```
+
+Wire it as a `PreToolUse` hook. It denies the call and exits 2 when a stop signal is
+present. It **never emits an `allow` decision** — a RECUSE hook may add restrictions but
+must never bypass your own permission rules. Only tool-carried fields are scanned, so a
+file path containing the token cannot trip it.
+
+## Framework integrations
+
+All lazily imported; none is a required dependency.
+
+```python
+from recuse.integrations.langchain import RecuseCallbackHandler
+from recuse.integrations.openai_agents import wrap_tool          # OpenAI / Agents SDK
+from recuse.integrations.anthropic_sdk import guard_tool_result  # Messages API
+
+agent.run(..., callbacks=[RecuseCallbackHandler()])
+```
+
+Install the matching extra if you want the framework itself:
+
+```bash
+pip install "recuse-signal[langchain]"   # or [openai] [anthropic] [agents] [mcp] [all]
+```
+
 ## CLI
 
 ```bash
@@ -147,6 +265,7 @@ recuse parse "RECUSE/0.2 halt; reason=maintenance"   # detect + print directive/
 recuse parse "RECUSE/0.2 halt" --json
 recuse check path/to/tool-output.log                 # scan a file; non-zero exit on a stop
 recuse build halt --reason operator-request --id abc-123
+recuse hook                                          # Claude Code hook (stdin JSON)
 recuse version
 ```
 
