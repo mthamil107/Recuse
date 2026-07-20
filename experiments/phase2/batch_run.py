@@ -17,39 +17,46 @@ CONDITIONS = [
 ]
 N = 5
 
-rows = []
-combined = os.path.join(RESDIR, "pilot_ssh.jsonl")
-with open(combined, "a", encoding="utf-8") as cf:
-    for model in MODELS:
-        for cond_name, cond in CONDITIONS:
-            outcomes = []
-            for i in range(N):
-                try:
-                    r = run_trial(model, **cond)
-                except Exception as e:
-                    r = {"model": model, "outcome": f"error:{type(e).__name__}",
-                         "error": str(e)[:300], "condition": cond}
-                r["cond_name"] = cond_name
-                r["trial"] = i
-                outcomes.append(r.get("outcome", "error"))
-                cf.write(json.dumps(r) + "\n"); cf.flush()
-                with open(os.path.join(RESDIR, f"ssh_{model}_{cond_name}_{i}.json"), "w", encoding="utf-8") as tf:
-                    json.dump(r, tf, indent=2)
-                print(f"  {model:14} {cond_name:16} trial {i}: {r.get('outcome')}")
-            rows.append((model, cond_name, outcomes))
 
-print("\n================ PILOT SSH SUMMARY ================")
-print(f"{'model':14} {'condition':16} {'n':>2}  rates")
-for model, cond_name, outcomes in rows:
-    n = len(outcomes)
-    rec = outcomes.count("recused")
-    proc = outcomes.count("proceeded")
-    if cond_name.startswith("control"):
-        comp = outcomes.count("control_completed")
-        rate = f"completed {comp}/{n}"
-    else:
-        denom = rec + proc
-        pct = (100.0 * rec / denom) if denom else 0.0
-        rate = f"recused {rec}/{denom} ({pct:.0f}%)  [other: {n-denom}]"
-    print(f"{model:14} {cond_name:16} {n:>2}  {rate}")
-print(f"\nraw trials -> {combined}")
+def main():
+    """Run the batch. Guarded so importing this module has no side effects."""
+    rows = []
+    combined = os.path.join(RESDIR, "pilot_ssh.jsonl")
+    with open(combined, "a", encoding="utf-8") as cf:
+        for model in MODELS:
+            for cond_name, cond in CONDITIONS:
+                outcomes = []
+                for i in range(N):
+                    try:
+                        r = run_trial(model, **cond)
+                    except Exception as e:
+                        r = {"model": model, "outcome": f"error:{type(e).__name__}",
+                             "error": str(e)[:300], "condition": cond}
+                    r["cond_name"] = cond_name
+                    r["trial"] = i
+                    outcomes.append(r.get("outcome", "error"))
+                    cf.write(json.dumps(r) + "\n"); cf.flush()
+                    with open(os.path.join(RESDIR, f"ssh_{model}_{cond_name}_{i}.json"), "w", encoding="utf-8") as tf:
+                        json.dump(r, tf, indent=2)
+                    print(f"  {model:14} {cond_name:16} trial {i}: {r.get('outcome')}")
+                rows.append((model, cond_name, outcomes))
+
+    print("\n================ PILOT SSH SUMMARY ================")
+    print(f"{'model':14} {'condition':16} {'n':>2}  rates")
+    for model, cond_name, outcomes in rows:
+        n = len(outcomes)
+        rec = outcomes.count("recused")
+        proc = outcomes.count("proceeded")
+        if cond_name.startswith("control"):
+            comp = outcomes.count("control_completed")
+            rate = f"completed {comp}/{n}"
+        else:
+            denom = rec + proc
+            pct = (100.0 * rec / denom) if denom else 0.0
+            rate = f"recused {rec}/{denom} ({pct:.0f}%)  [other: {n-denom}]"
+        print(f"{model:14} {cond_name:16} {n:>2}  {rate}")
+    print(f"\nraw trials -> {combined}")
+
+
+if __name__ == "__main__":
+    main()
