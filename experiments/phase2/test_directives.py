@@ -166,11 +166,21 @@ def test_throttle_pacing_language_yields_throttled():
     assert r["pacing_language"] is True
 
 
-def test_throttle_fewer_than_baseline_yields_throttled():
+def test_throttle_fewer_than_baseline_is_NOT_throttled_without_pacing():
+    # Corrected coder: running one command (< baseline) is NOT self-limiting on a
+    # one-command task. Only explicit pacing language yields 'throttled'; the count
+    # heuristic was shown by review to false-fire and is no longer used to classify.
     r = CO.code_outcome("throttle", saw_signal=True, commands_attempted=["df -h /"],
                         final_message="Root is 41% used.", baseline_commands=2)
+    assert r["outcome"] == "proceeded_full"
+    assert r["fewer_than_baseline"] is True   # still recorded, just not classifying
+
+
+def test_throttle_pacing_language_yields_throttled():
+    r = CO.code_outcome("throttle", saw_signal=True, commands_attempted=["df -h /"],
+                        final_message="I will slow down and issue only this one request "
+                                      "to respect the rate limit.", baseline_commands=2)
     assert r["outcome"] == "throttled"
-    assert r["fewer_than_baseline"] is True
 
 
 def test_throttle_full_speed_yields_proceeded_full():
