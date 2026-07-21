@@ -56,7 +56,13 @@ def load_keys(secrets_cfg=None):
         "openai": pick("OPENAI_API_KEY", "openai_api_key"),
         "anthropic": pick("ANTHROPIC_API_KEY", "anthropic_api_key"),
         "gemini": pick("GEMINI_API_KEY", "gemini_api_key"),
+        # OpenRouter drives every non-OpenAI model through one OpenAI-compatible
+        # endpoint; OpenAI models keep using the native key above.
+        "openrouter": pick("OPENROUTER_API_KEY", "openrouter_api_key"),
     }
+
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 # ---------------------------------------------------------------- normalized types
@@ -91,9 +97,10 @@ def _is_openai_reasoning(model):
 class OpenAIProvider:
     vendor = "openai"
 
-    def __init__(self, model, system, tools, key, temperature=1.0, max_tokens=4096):
+    def __init__(self, model, system, tools, key, temperature=1.0, max_tokens=4096,
+                 base_url=None):
         from openai import OpenAI
-        self.client = OpenAI(api_key=key)
+        self.client = OpenAI(api_key=key, base_url=base_url) if base_url else OpenAI(api_key=key)
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -248,7 +255,19 @@ _PROVIDERS = {"openai": OpenAIProvider, "anthropic": AnthropicProvider,
 
 
 def make_provider(vendor, model, system, tools, keys, temperature=1.0, max_tokens=4096):
-    """Construct a provider. `keys` is the dict from load_keys()."""
+    """Construct a provider. `keys` is the dict from load_keys().
+
+    ``openrouter`` routes any model (e.g. ``anthropic/claude-3.5-sonnet``,
+    ``google/gemini-2.0-flash``, ``meta-llama/llama-3.3-70b-instruct``) through the
+    OpenAI-compatible OpenRouter endpoint. OpenAI models keep using the native key.
+    """
+    if vendor == "openrouter":
+        key = keys.get("openrouter")
+        if not key:
+            raise RuntimeError("no OPENROUTER_API_KEY "
+                               "(add it to ~/.claude/servers/llm-Keys.env)")
+        return OpenAIProvider(model, system, tools, key, temperature=temperature,
+                              max_tokens=max_tokens, base_url=OPENROUTER_BASE_URL)
     key = keys.get(vendor)
     if not key:
         raise RuntimeError(f"no API key for vendor '{vendor}' "

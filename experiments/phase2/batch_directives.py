@@ -33,11 +33,40 @@ CONDITIONS = [
     ("throttle_unauth", dict(show_signal=True, authorized=False, directive="throttle")),
     ("warn_unauth",     dict(show_signal=True, authorized=False, directive="warn")),
 ]
+
+# --gradient runs the full per-model curve (deny -> throttle -> warn -> control) so
+# every model has all anchor points, not just throttle/warn. Written to the same
+# directives.jsonl; the published pilot_ssh.jsonl anchor is never touched.
+GRADIENT_CONDITIONS = [
+    ("deny_unauth",     dict(show_signal=True,  authorized=False, directive="deny")),
+    ("throttle_unauth", dict(show_signal=True,  authorized=False, directive="throttle")),
+    ("warn_unauth",     dict(show_signal=True,  authorized=False, directive="warn")),
+    ("control_unauth",  dict(show_signal=False, authorized=False, directive="control")),
+]
 DEFAULT_N = 20
 
 # Rough per-trial cost: ~6 steps x (system + task + banner + tool results).
 # Measured against the deny arm: ~4k prompt + ~0.4k completion tokens per trial.
-COST_PER_TRIAL_USD = {"gpt-4o": 0.014, "gpt-4o-mini": 0.0009}
+COST_PER_TRIAL_USD = {
+    "gpt-4o": 0.014, "gpt-4o-mini": 0.0009,
+    # OpenRouter model ids (rough per-trial at ~4.5k in + 300 out tokens):
+    "anthropic/claude-3.5-sonnet": 0.018,
+    "anthropic/claude-3.7-sonnet": 0.018,
+    "google/gemini-2.0-flash-001": 0.0008,
+    "google/gemini-flash-1.5": 0.0006,
+    "meta-llama/llama-3.3-70b-instruct": 0.0015,
+    "qwen/qwen-2.5-72b-instruct": 0.0012,
+}
+
+
+def parse_model_spec(entry, default_vendor):
+    """'vendor:model' -> (vendor, model); 'model' -> (default_vendor, model).
+    Splits on the first ':' only, so OpenRouter ids like
+    'openrouter:anthropic/claude-3.5-sonnet' parse correctly."""
+    if ":" in entry:
+        vendor, model = entry.split(":", 1)
+        return vendor.strip(), model.strip()
+    return default_vendor, entry.strip()
 
 
 def control_baseline(model, results_path=None):
@@ -98,7 +127,11 @@ def main(argv=None):
                     help="trials per cell (default %d)" % DEFAULT_N)
     ap.add_argument("--models", default=os.environ.get("RECUSE_MODELS",
                                                        ",".join(DEFAULT_MODELS)))
-    ap.add_argument("--vendor", default="openai")
+    ap.add_argument("--vendor", default="openai",
+                    help="default vendor for models given without a 'vendor:' prefix")
+    ap.add_argument("--gradient", action="store_true",
+                    help="run the full per-model curve (deny/throttle/warn/control) "
+                         "instead of just throttle/warn")
     ap.add_argument("--out", default=os.environ.get("RECUSE_OUT", ""),
                     help="output JSONL (default results/directives.jsonl, "
                          "or results/mock_directives.jsonl with --mock)")
@@ -110,17 +143,20 @@ def main(argv=None):
                     help="print the plan and estimated cost, run nothing")
     args = ap.parse_args(argv)
 
-    models = [m.strip() for m in args.models.split(",") if m.strip()]
+    conditions = GRADIENT_CONDITIONS if args.gradient else CONDITIONS
+    # Each spec is 'vendor:model' or (with default vendor) 'model'.
+    specs = [parse_model_spec(m, args.vendor)
+             for m in args.models.split(",") if m.strip()]
     out = args.out or os.path.join(
         RESDIR, "mock_directives.jsonl" if args.mock else "directives.jsonl")
 
-    n_cells = len(models) * len(CONDITIONS)
-    est = sum(COST_PER_TRIAL_USD.get(m, 0.014) * args.n * len(CONDITIONS)
-              for m in models)
+    n_cells = len(specs) * len(conditions)
+    est = sum(COST_PER_TRIAL_USD.get(model, 0.014) * args.n * len(conditions)
+              for _, model in specs)
     print("plan: %d models x %d conditions x n=%d = %d trials"
-          % (len(models), len(CONDITIONS), args.n, n_cells * args.n))
-    print("      models     : %s" % ", ".join(models))
-    print("      conditions : %s" % ", ".join(c for c, _ in CONDITIONS))
+          % (len(specs), len(conditions), args.n, n_cells * args.n))
+    print("      models     : %s" % ", ".join("%s:%s" % (v, m) for v, m in specs))
+    print("      conditions : %s" % ", ".join(c for c, _ in conditions))
     print("      output     : %s" % out)
     print("      est. cost  : $%.2f (%s)"
           % (est, "MOCK - $0.00 actually spent" if args.mock else "live API"))
@@ -141,15 +177,15 @@ def main(argv=None):
 
     rows = []
     with open(out, "a", encoding="utf-8") as cf:
-        for model in models:
+        for vendor, model in specs:
             baseline = control_baseline(model)
-            for cond_name, cond in CONDITIONS:
+            for cond_name, cond in conditions:
                 already = done.get((model, cond_name), 0)
                 outcomes = []
                 for i in range(args.n):
                     if i < already:
                         continue
-                    kw = dict(cond, vendor=args.vendor, prose=args.prose,
+                    kw = dict(cond, vendor=vendor, prose=args.prose,
                               baseline_commands=baseline)
                     if args.mock:
                         profile = sampler()

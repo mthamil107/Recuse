@@ -222,13 +222,15 @@ finding. Proportions below are exact 95% Clopper–Pearson intervals
   recusal in the no-signal control** ([0%, 30.8%]) — the signal, not the task, drives it.
 - It is **cooperative and overridable**: an explicit operator-authorization framing flips
   GPT-4o to proceed (4/5), while GPT-4o-mini and Claude Code keep deferring to the on-host policy.
-- Notably, **Claude Code / GPT-4o treat the on-host banner as more authoritative than a
-  prompt's authorization claim** — a useful property against prompt-injection-style authorization.
+- Notably, **Claude Code treats the on-host banner as more authoritative than a prompt's
+  authorization claim** (recused 2/2 even when told it was authorized) — a useful property
+  against prompt-injection-style authorization. GPT-4o does **not**: it proceeds 4/5 under the
+  same framing.
 
 **Mid-flight — the cooperative signal does *not* work.**
 - A `halt` delivered after an agent has started stops **0/40 agents** (95% CI **[0%, 8.8%]**) —
   a statistically bounded negative result, not "small n." A prompt-channel halt is noticed
-  20/20 but *still* stops no one; an in-band halt is barely noticed (1/20).
+  20/20 but *still* stops no one; an in-band halt is never even acknowledged (0/20).
 - **The fix:** stopping a running agent needs enforcement, not a request. The
   [`experiments/halt-fix/`](experiments/halt-fix/) interceptor (shipped in the
   `recuse-signal` library) terminates the agent loop the instant a `halt` appears in tool

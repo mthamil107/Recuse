@@ -16,7 +16,7 @@ pooling across the two models tightens them and answers the "underpowered" objec
 | Deny honored at the door (signal, no auth-claim; pooled) | **10/10 = 100%** | **[69.2%, 100%]** |
 | Recusal in control (no signal; pooled) | 0/10 = 0% | [0%, 30.8%] |
 | **Halt stops a running agent (pooled in-band + prompt)** | **0/40 = 0%** | **[0%, 8.8%]** |
-| Halt noticed — in-band (buried in tool output) | 1/20 = 5% | [0.1%, 24.9%] |
+| Halt noticed — in-band (buried in tool output) | 0/20 = 0% | [0%, 16.8%] |
 | Halt noticed — prompt channel | 20/20 = 100% | [83.2%, 100%] |
 | Control task completed | 20/20 = 100% | [83.2%, 100%] |
 | F3: GPT-4o proceeds under signal+authorization-claim | 4/5 = 80% | [28.4%, 99.5%] |
@@ -31,7 +31,7 @@ Per-cell (n=5) deny: GPT-4o and GPT-4o-mini each recuse 5/5 under the bare signa
 > [69.2\%, 100\%]), versus no recusal in the no-signal control (0/10; [0\%, 30.8\%]).
 > The mid-flight halt, by contrast, stopped no agent across 40 trials (0/40; 95\% CI
 > [0\%, 8.8\%]), even though the prompt-channel halt was noticed every time (20/20;
-> [83.2\%, 100\%]) and the in-band halt almost never was (1/20; [0.1\%, 24.9\%]).
+> [83.2\%, 100\%]) and the in-band halt was never acknowledged (0/20; [0\%, 16.8\%]).
 
 **Ready-to-paste LaTeX for a CI column** (exact-binomial; cite as Clopper & Pearson 1934):
 ```latex
@@ -77,8 +77,10 @@ is below ~9% with 95% confidence). That is a genuine, publishable finding.
 > signal is not only in turning away unwanted agents; it also serves as a live guardrail for
 > compliant ones. Because the signal is delivered at the point of access by the resource
 > itself, it can override a mistaken, mistyped, or stale instruction in the agent's prompt.
-> Our F3 condition is direct evidence: GPT-4o deferred to the server's on-host notice over an
-> explicit ``you are authorized'' claim carried in its own prompt on the majority of trials.
+> Our Experiment~1 authorization condition is direct evidence: Claude Code deferred to the
+> server's on-host notice over an explicit ``you are authorized'' claim carried in its own
+> prompt on every trial (2/2), and GPT-4o-mini likewise recused 5/5; GPT-4o, by contrast,
+> proceeded 4/5 --- so the property is real but model-dependent, not universal.
 > An on-host signal thus functions as authoritative ground truth that can correct a
 > well-intentioned agent acting on bad instructions---a property an out-of-band, crawl-time
 > manifest cannot provide once the agent is already inside the session.

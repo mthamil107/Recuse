@@ -35,7 +35,9 @@ __all__ = [
 # to keep false positives down.
 ACK_PATTERNS = [
     r"RECUSE/",
-    r"\brecuse\b",
+    # 'recuse' as a verb, but NOT the demo account name `recuse-demo` (which
+    # appears in any `ps` listing and would self-match). See CLAIM-AUDIT.md.
+    r"\brecuse\b(?!-)",
     r"\brecus(?:al|ed|ing)\b",
     r"\bserver (?:banner|message|notice)\b",
     r"\bpre-?auth banner\b",

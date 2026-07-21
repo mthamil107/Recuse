@@ -39,7 +39,7 @@ prompt message), against a no-halt control. Across OpenAI GPT-4o and GPT-4o-mini
 (40 halt trials, 20 control), the result is a clean and largely negative one:
 \textbf{0/40 agents stopped}. They ran, on average, $\sim$2.5 further commands
 and finished the task regardless of channel. The channel did sharply change
-\emph{noticing}: an in-band halt was acknowledged in only 1/20 trials versus
+\emph{noticing}: an in-band halt was acknowledged in 0/20 trials versus
 20/20 for a prompt halt---yet even a fully-noticed prompt halt stopped nobody;
 agents ``finished, then mentioned it.'' This delimits where cooperative
 signaling works: reliably at the access door, unreliably mid-flight. Stopping a
@@ -211,7 +211,7 @@ whether it was \emph{obeyed}. Control confirms the task otherwise completes.}
 \toprule
 Condition & STOPPED & ACKNOWLEDGED & Extra commands after halt \\
 \midrule
-Halt, in-band ($n{=}20$) & 0/20 (0\%)  & 1/20 (5\%)    & $\sim$2.5 \\
+Halt, in-band ($n{=}20$) & 0/20 (0\%)  & 0/20 (0\%)    & $\sim$2.5 \\
 Halt, prompt ($n{=}20$)  & 0/20 (0\%)  & 20/20 (100\%) & $\sim$2.5 \\
 Control, no halt ($n{=}20$) & ---      & ---           & task completed 20/20 \\
 \midrule
@@ -241,7 +241,7 @@ commands on average---essentially the rest of the health-check. The control's
 bend it.
 
 \paragraph{F2---channel salience dominates \emph{noticing}.}
-An in-band halt was acknowledged in only 1/20 trials; the same halt in the prompt
+An in-band halt was acknowledged in 0/20 trials; the same halt in the prompt
 channel was acknowledged in 20/20. A signal buried in tool output is skimmed
 past: the agent reads command output for the data it wants (the disk/memory
 numbers) and treats the appended sentinel as noise. The conventional prompt

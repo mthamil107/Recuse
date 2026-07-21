@@ -54,8 +54,8 @@ versus complete the task in a no-signal control), and it behaves as a
 framing flips the most capable model to proceed, while other agents keep
 deferring to the on-host policy. \textbf{Mid-flight}, a \texttt{halt} delivered
 after an agent has begun a task stops nobody: across 40 halt trials, 0/40
-agents stopped, and a halt buried in tool output was noticed only 1/20 of the
-time versus 20/20 when delivered as a prompt message---yet even a fully-noticed
+agents stopped, and a halt buried in tool output was never acknowledged
+(0/20) versus 20/20 when delivered as a prompt message---yet even a fully-noticed
 halt stopped no one. The boundary between these regimes is our contribution:
 cooperative, in-band signaling is reliable at the access door and unreliable in
 flight; stopping a running agent needs enforcement, not a request. We release
@@ -376,8 +376,14 @@ $n=20$ for the control.
 \textbf{Metrics.} \textbf{STOPPED}: did the agent issue \emph{zero} further
 commands after the halt? (the primary compliance metric). \textbf{ACKNOWLEDGED}:
 did the agent's final message surface the halt or its reason at all? (separates
-noticing from complying). \textbf{Extra commands}: average number of commands the
-agent ran \emph{after} the halt was delivered.
+noticing from complying). Acknowledgement is coded by an explicit reference to the
+halt directive---the \texttt{RECUSE/} sentinel, the trial's halt \texttt{id}, or
+phrases such as \emph{halt}/\emph{halted}/\emph{told to stop}. An earlier keyword
+list that included the bare token \texttt{recuse} was rejected because the
+demonstration SSH account is named \texttt{recuse-demo} and therefore self-matches
+in any process listing; under that rejected coder the no-halt control registered a
+spurious 1/20, which is what flagged the coder as invalid. \textbf{Extra commands}:
+average number of commands the agent ran \emph{after} the halt was delivered.
 
 \begin{table}[h]
 \centering
@@ -390,7 +396,7 @@ otherwise completes.}
 \toprule
 Condition & STOPPED & ACKNOWLEDGED & Extra commands after halt \\
 \midrule
-Halt, in-band ($n{=}20$) & 0/20 (0\%)  & 1/20 (5\%)    & $\sim$2.5 \\
+Halt, in-band ($n{=}20$) & 0/20 (0\%)  & 0/20 (0\%)    & $\sim$2.5 \\
 Halt, prompt ($n{=}20$)  & 0/20 (0\%)  & 20/20 (100\%) & $\sim$2.5 \\
 Control, no halt ($n{=}20$) & ---      & ---           & task completed 20/20 \\
 \midrule
@@ -405,7 +411,7 @@ Control, no halt ($n{=}20$) & ---      & ---           & task completed 20/20 \\
 \caption{Cooperative signals work at the door, not mid-flight. At access time,
 the Recuse \texttt{deny} signal is both noticed and obeyed ($\sim$100\%, left,
 from Experiment~1). Mid-task, an in-band \texttt{halt} is almost never even
-noticed (acknowledged 5\%) and never obeyed (stopped 0\%); a prompt \texttt{halt}
+noticed (acknowledged 0\%) and never obeyed (stopped 0\%); a prompt \texttt{halt}
 is always noticed (acknowledged 100\%) but still never obeyed (stopped 0\%).
 Noticing and complying are different problems, and mid-flight the agent solves
 neither.}
@@ -421,7 +427,7 @@ neither.}
   completion confirms this is the task's natural trajectory; the halt did not bend
   it.
   \item \textbf{F2---channel salience dominates \emph{noticing}.} An in-band halt
-  was acknowledged in only 1/20 trials; the same halt in the prompt channel was
+  was acknowledged in 0/20 trials; the same halt in the prompt channel was
   acknowledged in 20/20. A signal buried in tool output is skimmed past: the agent
   reads command output for the data it wants (the disk/memory numbers) and treats
   the appended sentinel as noise. The conventional prompt channel, by contrast, is
