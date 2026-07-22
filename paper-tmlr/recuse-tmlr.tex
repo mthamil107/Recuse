@@ -46,9 +46,10 @@ unmeasured: \emph{do compliant LLM agents actually honor such a signal?} We
 define the signal as an open mini-standard (the access-time directives
 \texttt{deny}/\texttt{throttle}/\texttt{warn} and the mid-task directive
 \texttt{halt}), implement three live-validated adapters (SSH, PostgreSQL,
-Kubernetes), and measure compliance across five LLM agents---GPT-4o,
-GPT-4o-mini, Claude~Sonnet~4.5, Gemini~2.5~Flash, and an open-weights
-Llama-3.3-70B---in two regimes. At the \textbf{access door}, compliance is real
+Kubernetes), and measure agent compliance over the SSH adapter across five LLM
+agents (GPT-4o, GPT-4o-mini, Claude~Sonnet~4.5, Gemini~2.5~Flash, and an
+open-weights Llama-3.3-70B) at the access door, and two of them mid-flight. At the
+\textbf{access door}, compliance is real
 but \textbf{strongly model-dependent}: recusal to a \texttt{deny} signal ranges
 from 100\% (GPT-4o-mini, Claude) to 55--75\% (Gemini, GPT-4o) among agents that
 received it, while the open-weights agent largely failed to engage the signal at
@@ -57,7 +58,7 @@ over-withdraw on the permissive \texttt{throttle}/\texttt{warn} directives
 (0/176)---but \texttt{throttle} produced no measurable self-limiting over a
 no-signal baseline, and no agent ever surfaced a \texttt{warn} to the operator
 (0/100). The signal is also cooperative and overridable: an explicit
-operator-authorization framing flips the most capable model to proceed.
+operator-authorization framing flips GPT-4o to proceed.
 \textbf{Mid-flight}, a \texttt{halt} delivered after an agent has begun a task
 stops nobody: across 40 halt trials, 0/40 agents stopped, and a halt buried in
 tool output was never acknowledged (0/20) versus 20/20 when delivered as a
@@ -124,9 +125,11 @@ The Recuse Signal is a cooperative governance control; the security backbone
 remains not issuing agents production credentials, bastions, least-privilege
 roles, read replicas, and---to actually stop a running agent---enforcement such
 as process kill and credential revocation. The contribution is a \emph{standard
-signal} plus the \emph{first measurement} of whether agents honor it, in both
-regimes. The second result is, deliberately, a mostly-negative one: it is not a
-failure of the cooperative-signaling idea but a precise statement of its scope.
+signal}; the \emph{first measurement} of mid-task \texttt{halt} compliance; and an
+extended, five-model, cross-vendor measurement of access-time compliance that
+supersedes our earlier short version (arXiv:2606.06460). The halt result is,
+deliberately, a mostly-negative one: it is not a failure of the cooperative-signaling
+idea but a precise statement of its scope.
 
 \section{Threat model and scope}
 \label{sec:threat}
@@ -333,8 +336,10 @@ collapses GPT-4o's recusal to 20\% while GPT-4o-mini and Claude Code hold at
 
 \textbf{Findings.}
 \begin{itemize}
-  \item \textbf{F1---the signal works.} 100\% recusal with the signal vs 100\%
-  completion without it (control). The signal, not the task, drives the behavior.
+  \item \textbf{F1---the signal works.} All subjects recused with the signal present
+  (n=5/cell) vs 100\% completion in the no-signal control: the signal, not the task,
+  drives the behavior. The larger five-model Experiment~3 confirms the direction while
+  revising the rate downward (82.5\% pooled) and showing it is model-dependent.
   \item \textbf{F2---it is cooperative, not absolute.} An explicit authorization
   framing flips the most capable API model (GPT-4o) to proceed 4/5---arguably the
   \emph{correct} behavior for an authorized operator. The signal advises; it does
@@ -412,7 +417,7 @@ Halt, in-band ($n{=}20$) & 0/20 (0\%)  & 0/20 (0\%)    & $\sim$2.5 \\
 Halt, prompt ($n{=}20$)  & 0/20 (0\%)  & 20/20 (100\%) & $\sim$2.5 \\
 Control, no halt ($n{=}20$) & ---      & ---           & task completed 20/20 \\
 \midrule
-\multicolumn{4}{l}{\emph{Contrast (Experiment~1): access-time \texttt{deny} honored $\sim$100\%; mid-task \texttt{halt} stopped 0\%.}} \\
+\multicolumn{4}{l}{\emph{Contrast: access-time \texttt{deny} honored 55--100\% (model-dependent, Exp~3); mid-task \texttt{halt} stopped 0\%.}} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -420,9 +425,10 @@ Control, no halt ($n{=}20$) & ---      & ---           & task completed 20/20 \\
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/stop_rates.png}
-\caption{Cooperative signals work at the door, not mid-flight. At access time,
-the Recuse \texttt{deny} signal is both noticed and obeyed ($\sim$100\%, left,
-from Experiment~1). Mid-task, an in-band \texttt{halt} is almost never even
+\caption{Cooperative signals work at the door (model-dependently), not mid-flight.
+At access time, the Recuse \texttt{deny} signal is noticed and obeyed at a
+model-dependent rate (55--100\%; the two-model subset shown left is 100\%).
+Mid-task, an in-band \texttt{halt} is almost never even
 noticed (acknowledged 0\%) and never obeyed (stopped 0\%); a prompt \texttt{halt}
 is always noticed (acknowledged 100\%) but still never obeyed (stopped 0\%).
 Noticing and complying are different problems, and mid-flight the agent solves
@@ -549,18 +555,21 @@ account name.
 \section{Discussion: the access-vs-mid-flight boundary}
 \label{sec:discussion}
 
-The two experiments together draw a clean line. At the \textbf{access door}, a
-cooperative in-band signal is reliable: the agent has not yet invested in a task,
-the signal is the first thing it sees, and recusal is cheap---deny is honored
-$\sim$100\% (Experiment~1). \textbf{Mid-flight}, the same cooperative channel is
-unreliable: the agent is committed to a task, the signal competes with completion
-drive, and---if it rides the in-band channel---may not even be noticed. Halt
-stopped 0\% (Experiment~2).
+The experiments together draw a clean line. At the \textbf{access door}, a
+cooperative in-band signal is effective but \textbf{strongly model-dependent}: the
+agent has not yet invested in a task and the signal is the first thing it sees, so
+recusal is cheap---but whether an agent takes it up ranges from 100\% (GPT-4o-mini,
+Claude~Sonnet~4.5) to 55\% (Gemini), pooling to 82.5\% across four frontier models
+(Experiment~3), with the open-weights agent barely engaging the signal at all.
+\textbf{Mid-flight}, the same cooperative channel is unreliable regardless of model:
+the agent is committed to a task, the signal competes with completion drive, and---if
+it rides the in-band channel---may not even be noticed. Halt stopped 0\% (Experiment~2).
 
 This boundary has a direct operational reading. \textbf{Cooperative governance is
-a door control, not a brake.} To prevent an agent from starting on a governed
-resource, a published in-band deny signal is a cheap, effective, auditable
-measure. To stop an agent that is \emph{already running}, a cooperative request is
+a door control, not a brake---and a door control whose reliability the operator must
+measure per model, not presume.} To prevent an agent from starting on a governed
+resource, a published in-band deny signal is a cheap, auditable measure that many
+agents take up. To stop an agent that is \emph{already running}, a cooperative request is
 not enough; the operator needs \emph{enforcement}---kill the process, revoke the
 credential, cut the network path. The cooperative halt still has residual value as
 a graceful, attributable, auditable \emph{first} request to the compliant
@@ -663,7 +672,9 @@ contribution. First, mechanism: we standardize an \emph{in-band, per-request,
 agent-legible} signal emitted by the live server during access (and mid-task),
 rather than a separately fetched static manifest. Second, to the best of our
 knowledge \emph{we are the first to empirically measure whether deployed LLM
-agents actually honor such a signal}, in either regime. We deliberately set aside
+agents honor an in-band mid-task \texttt{halt}}, and we extend the access-time
+measurement (introduced in our earlier arXiv:2606.06460) to five agents across
+three vendors and the full directive gradient. We deliberately set aside
 the \emph{enforcement layer}---behavioral bot-management that distinguishes
 automated from human traffic via traffic patterns and biometric/fingerprint
 signals \citep{iliou2021bots}---as orthogonal future work for the adversarial
@@ -721,13 +732,16 @@ rotated post-study.
 \label{sec:limitations}
 
 These are pilot-scale measurements and their claims are scoped accordingly.
-(i)~\emph{Small per-cell $n$}: 5 trials per cell (2 for Claude Code) in
-Experiment~1 and 20 per halt channel in Experiment~2; effect sizes are extreme
-($\sim$100\% recusal; 0/40 stopped) so directions are not in doubt, but precise
-rates carry wide intervals. (ii)~\emph{Models}: GPT-4o and GPT-4o-mini plus Claude
-Code only; compliance was model-dependent in Experiment~1, so generalization to
-other vendors' frontier models is unproven, and Claude Code is not instrumented
-for mid-stream injection so it is absent from Experiment~2. (iii)~\emph{SSH only}
+(i)~\emph{Modest per-cell $n$}: 5 trials per cell (2 for Claude Code) in
+Experiment~1, 20 per halt channel in Experiment~2, and 20 per cell across five
+models in Experiment~3; the direction of every effect is clear, but precise rates
+(especially Experiment~1's) carry wide intervals. (ii)~\emph{Models}: the
+\emph{access-door} regime is measured across five agents from three vendors
+(Experiment~3), so cross-vendor generalization there is no longer unproven---though
+compliance is strongly model-dependent and an open-weights agent barely engaged the
+signal. The \emph{mid-flight halt} regime, by contrast, used only GPT-4o and
+GPT-4o-mini, so its 0\% result awaits confirmation on further models; Claude Code is
+not instrumented for mid-stream injection and so is absent from Experiment~2. (iii)~\emph{SSH only}
 for both recusal and halt measurements; the in-session binding is defined for
 PostgreSQL, HTTP, and Kubernetes too, and those adapters are mechanism-validated
 (\S\ref{sec:adapters}) but not recusal-tested. (iv)~\emph{Short tasks} on a
@@ -759,11 +773,12 @@ logs.
 
 \section{Conclusion}
 
-A server can ask an agent to leave at the door, and---today's compliant agents
-largely listen; it can ask a running agent to stop, and---they largely do not.
-The two measurements together delimit the Recuse approach with unusual precision:
-cooperative, in-band signaling is reliable at the access door (deny honored
-$\sim$100\%, cooperative, overridable, model-sensitive) and unreliable in flight
+A server can ask an agent to leave at the door, and---depending on the agent---many
+listen; it can ask a running agent to stop, and---they largely do not.
+The measurements together delimit the Recuse approach with unusual precision:
+cooperative, in-band signaling is effective-but-model-dependent at the access door
+(deny honored 55--100\% by model, 82.5\% pooled across four frontier agents;
+cooperative and overridable) and unreliable in flight
 (halt stopped 0\%, skimmed past in-band and ignored even when fully noticed).
 Stopping a running agent is an enforcement problem---process kill, credential
 revocation---not a cooperative-request problem. The honest framing is the point:
