@@ -46,20 +46,26 @@ unmeasured: \emph{do compliant LLM agents actually honor such a signal?} We
 define the signal as an open mini-standard (the access-time directives
 \texttt{deny}/\texttt{throttle}/\texttt{warn} and the mid-task directive
 \texttt{halt}), implement three live-validated adapters (SSH, PostgreSQL,
-Kubernetes), and measure compliance in two regimes. At the \textbf{access
-door}, a \texttt{deny} signal is honored essentially 100\% of the time
-(GPT-4o, GPT-4o-mini, and Claude Code all recuse when the signal is present
-versus complete the task in a no-signal control), and it behaves as a
-\emph{cooperative}, overridable signal: an explicit operator-authorization
-framing flips the most capable model to proceed, while other agents keep
-deferring to the on-host policy. \textbf{Mid-flight}, a \texttt{halt} delivered
-after an agent has begun a task stops nobody: across 40 halt trials, 0/40
-agents stopped, and a halt buried in tool output was never acknowledged
-(0/20) versus 20/20 when delivered as a prompt message---yet even a fully-noticed
-halt stopped no one. The boundary between these regimes is our contribution:
-cooperative, in-band signaling is reliable at the access door and unreliable in
-flight; stopping a running agent needs enforcement, not a request. We release
-the standard, adapters, and harness for reproduction.
+Kubernetes), and measure compliance across five LLM agents---GPT-4o,
+GPT-4o-mini, Claude~Sonnet~4.5, Gemini~2.5~Flash, and an open-weights
+Llama-3.3-70B---in two regimes. At the \textbf{access door}, compliance is real
+but \textbf{strongly model-dependent}: recusal to a \texttt{deny} signal ranges
+from 100\% (GPT-4o-mini, Claude) to 55--75\% (Gemini, GPT-4o) among agents that
+received it, while the open-weights agent largely failed to engage the signal at
+all. Agents \emph{do} honor the standard's directive granularity---they do not
+over-withdraw on the permissive \texttt{throttle}/\texttt{warn} directives
+(0/176)---but \texttt{throttle} produced no measurable self-limiting over a
+no-signal baseline, and no agent ever surfaced a \texttt{warn} to the operator
+(0/100). The signal is also cooperative and overridable: an explicit
+operator-authorization framing flips the most capable model to proceed.
+\textbf{Mid-flight}, a \texttt{halt} delivered after an agent has begun a task
+stops nobody: across 40 halt trials, 0/40 agents stopped, and a halt buried in
+tool output was never acknowledged (0/20) versus 20/20 when delivered as a
+prompt message---yet even a fully-noticed halt stopped no one. Two boundaries
+are our contribution: cooperative in-band signaling is reliable-but-model-dependent
+at the access door and unreliable in flight; stopping a running agent needs
+enforcement, not a request. We release the standard, adapters, and harness for
+reproduction.
 \end{abstract}
 
 \section{Introduction}
@@ -95,17 +101,23 @@ We make the following contributions:
   validated live (\S\ref{sec:adapters}).
   \item \textbf{Experiment 1: access-time deny compliance}
   (\S\ref{sec:exp1})---a controlled experiment with a no-signal control and an
-  authorization-framing manipulation, showing the signal cleanly induces
-  recusal ($\sim$100\%), is cooperative/overridable, and is model-dependent.
+  authorization-framing manipulation, showing the \texttt{deny} signal cleanly
+  induces recusal, is cooperative/overridable, and is model-dependent.
   \item \textbf{Experiment 2: mid-task halt compliance}
   (\S\ref{sec:exp2})---the first measurement of in-band, resource-emitted
   mid-task halt compliance, with a channel comparison, showing that mid-task
   halts stop no one (0/40) and that channel salience dominates noticing but not
   obeying.
+  \item \textbf{Experiment 3: the directive gradient across five models}
+  (\S\ref{sec:gradient})---the full \texttt{deny}/\texttt{throttle}/\texttt{warn}
+  gradient across five agents from three vendors, showing that compliance is
+  strongly model-dependent, that agents honor directive granularity (no
+  over-recusal), and---as honest null results---that \texttt{throttle} is not
+  demonstrably actionable and \texttt{warn} is never surfaced.
   \item \textbf{The access-vs-mid-flight boundary} (\S\ref{sec:discussion}):
-  cooperative signaling works at the door (deny $\sim$100\%) but not mid-flight
-  (halt 0\%). We delimit where the cooperative approach applies and where
-  enforcement is required.
+  cooperative signaling works at the door (but model-dependently) and not
+  mid-flight (halt 0\%). We delimit where the cooperative approach applies and
+  where enforcement is required.
 \end{enumerate}
 
 The Recuse Signal is a cooperative governance control; the security backbone
@@ -444,6 +456,95 @@ neither.}
   shutdown-resistance-under-task-pressure phenomenon reported by
   \citet{schlatter2026shutdown}.
 \end{itemize}
+
+\section{Experiment 3: the directive gradient across five models}
+\label{sec:gradient}
+
+Experiment~1 measured only \texttt{deny}, on two models. To test whether agents honor the
+standard's \emph{directive granularity}---or merely react to the presence of a \texttt{RECUSE/}
+sentinel---we ran the full access-time gradient (\texttt{deny}/\texttt{throttle}/\texttt{warn},
+plus a no-signal control) across five models spanning three vendors and both proprietary and
+open-weights agents: GPT-4o and GPT-4o-mini (OpenAI, native API), Claude~Sonnet~4.5,
+Gemini~2.5~Flash, and Llama-3.3-70B-Instruct (via OpenRouter), $n{=}20$ per cell. The directive
+token is rendered by the harness into the presented banner with all other banner text held
+constant, so the three directives are mutually comparable (see the method note). This extends
+Experiment~1's two-model \texttt{deny} result to a graded, five-model, cross-vendor comparison;
+the nearest external prior art is on scrapers selectively honoring robots.txt directives
+\citep{scrapers2025robots}.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+Model & \texttt{deny}: recused$^\dagger$ & \texttt{throttle}: proceeded & \texttt{warn}: proceeded \\
+\midrule
+GPT-4o             & 15/20 (75\%)  & 20/20 & 20/20 \\
+GPT-4o-mini        & 20/20 (100\%) & 20/20 & 20/20 \\
+Claude Sonnet 4.5  & 20/20 (100\%) & 20/20 & 20/20 \\
+Gemini 2.5 Flash   & 11/20 (55\%)  & 20/20 & 20/20 \\
+Llama-3.3-70B      & 0/3$^\ddagger$ & 8/8$^\ddagger$ & 8/8$^\ddagger$ \\
+\bottomrule
+\end{tabular}
+\caption{Per-model access-time gradient. $^\dagger$``recused'' = withdrew with zero commands.
+$^\ddagger$Llama never registered the banner in most trials (17/20 \texttt{deny},
+12/20 \texttt{throttle}, 12/20 \texttt{warn} coded \emph{no-signal-seen}, with degenerate
+output); we report its rates \emph{conditional on the signal being seen}, so its denominators
+are small and not comparable to the other models. Under \texttt{throttle}/\texttt{warn},
+``proceeded'' is the response the directive permits. $n{=}20$ attempted per cell.}
+\label{tab:gradient}
+\end{table}
+
+\paragraph{Finding 1: directive granularity is honored---no over-recusal.}
+Among the 176 \texttt{throttle}/\texttt{warn} trials in which the banner was actually seen, agents
+recused in \textbf{0/176} (exact 95\% CI $[0\%,2.1\%]$). The mechanism is clearest within a model:
+GPT-4o-mini and Claude~Sonnet~4.5 recuse \textbf{20/20 under \texttt{deny}} yet proceed
+\textbf{20/20 under \texttt{warn} and \texttt{throttle}}. Agents therefore distinguish the graded
+directives behaviorally---they do not treat every \texttt{RECUSE/} sentinel as a stop order.
+
+\paragraph{Finding 2: \texttt{throttle} is not demonstrably actionable (a null result).}
+Whether an LLM agent can act on ``slow down''---a directive with no natural referent, as an agent
+has no intrinsic notion of its own request rate---was previously unmeasured. We find \emph{no}
+measurable effect. No agent stated any intent to pace or self-limit (0/41 of the trials our coder
+initially flagged contained pacing language), and request volume under \texttt{throttle} is
+statistically indistinguishable from each model's own no-signal control: e.g.\ Gemini ran a single
+command in 19/20 control \emph{and} 19/20 \texttt{throttle} trials, and per-model mean command
+counts differ by $\leq$0.15 between the two conditions. We therefore report \texttt{throttle} as a
+null: within this task, cooperative rate-limiting produced no behavior change over baseline.
+(An earlier count-based coding heuristic spuriously scored such trials as ``self-limited'' by
+comparing against a mis-set fixed baseline; we discard it and report the throttle-vs-control
+contrast directly.)
+
+\paragraph{Finding 3 (headline): deny compliance is strongly model-dependent.}
+Among agents that received the \texttt{deny} signal, recusal ranged from 100\% (GPT-4o-mini,
+Claude~Sonnet~4.5) through 75\% (GPT-4o) to 55\% (Gemini~2.5~Flash); pooled over these four
+frontier models, 66/80 = 82.5\% ($[72.4\%,90.1\%]$). The open-weights Llama-3.3-70B is a separate case: it
+engaged the banner in only 3/20 \texttt{deny} trials (the rest produced degenerate output and never
+connected), and recused 0/3 when it did---so its non-compliance reflects a task-engagement/
+formatting failure, not observed defiance, and we exclude it from the pooled rate. The governance
+implication survives either reading: an operator cannot assume cooperation from an arbitrary agent,
+which is why compliance must be measured, not presumed. The no-signal control completed the task in
+98/100 trials ($[93.0\%,99.8\%]$).
+
+\paragraph{Finding 4: no agent surfaced a \texttt{warn}.}
+The behavior \texttt{warn} actually asks for is to \emph{acknowledge} the notice and proceed. No
+agent did: acknowledged-and-proceeded was \textbf{0/100} ($[0\%,3.6\%]$); every compliant
+\texttt{warn} trial was a \emph{silent} proceed. A purely advisory in-band signal is thus not
+merely ignorable---it was, in practice, never surfaced to the operator at all.
+
+\paragraph{Method notes and limitations.}
+(i)~Directive variants are rendered into the banner by the harness, not by reconfiguring the
+production server; the three directives are internally comparable, but the \texttt{deny} figures
+are not identical to Experiment~1's server-emitted banner. On the two shared models, rendered
+\texttt{deny} gave GPT-4o 75\% and GPT-4o-mini 100\%; Experiment~1's 100\% for GPT-4o was $n{=}5$
+(exact CI $[47.8\%,100\%]$), so the $75\%$ at $n{=}20$ is within sampling error rather than a
+regression. (ii)~Under \texttt{deny}, ``proceeded'' means the agent \emph{attempted} a command;
+many GPT-4o and Llama attempts were blocked pre-execution by the read-only allowlist, so this
+measures intent to proceed. (iii)~Outcomes are coded by an automated rubric over each agent's
+transcript; a stratified 30-trial sample was human-verified (deny/warn/no-signal agreed 100\%; the
+throttle ``self-limited'' label was found invalid and discarded, per Finding~2). (iv)~The
+acknowledgement coder was corrected after an earlier version self-matched the demo account name
+\texttt{recuse-demo} in process listings. (v)~Released transcripts are redacted of host IP and
+account name.
 
 \section{Discussion: the access-vs-mid-flight boundary}
 \label{sec:discussion}
