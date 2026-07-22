@@ -91,3 +91,4 @@ packaging/pypi/dist/
 packaging/pypi/build/
 packaging/pypi/*.egg-info/
 packaging/pypi/src/*.egg-info/
+paper-tmlr/recuse-arxiv-v3.tar.gz

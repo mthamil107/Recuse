@@ -22,8 +22,9 @@
 Compliance with In-Band Governance Signals at the Access Door and Mid-Flight}
 
 \author{Thamilvendhan Munirathinam, \texttt{mthamil107@gmail.com}\thanks{An
-earlier short version of the access-deny results appeared as
-arXiv:2606.06460.}}
+earlier, shorter version of this paper presented only the access-deny results
+(two models); this version adds the mid-task halt study and the five-model
+directive gradient.}}
 
 \begin{document}
 
@@ -127,7 +128,7 @@ roles, read replicas, and---to actually stop a running agent---enforcement such
 as process kill and credential revocation. The contribution is a \emph{standard
 signal}; the \emph{first measurement} of mid-task \texttt{halt} compliance; and an
 extended, five-model, cross-vendor measurement of access-time compliance that
-supersedes our earlier short version (arXiv:2606.06460). The halt result is,
+supersedes the earlier, deny-only version of this paper. The halt result is,
 deliberately, a mostly-negative one: it is not a failure of the cooperative-signaling
 idea but a precise statement of its scope.
 
@@ -673,8 +674,8 @@ agent-legible} signal emitted by the live server during access (and mid-task),
 rather than a separately fetched static manifest. Second, to the best of our
 knowledge \emph{we are the first to empirically measure whether deployed LLM
 agents honor an in-band mid-task \texttt{halt}}, and we extend the access-time
-measurement (introduced in our earlier arXiv:2606.06460) to five agents across
-three vendors and the full directive gradient. We deliberately set aside
+measurement (introduced in the earlier, deny-only version of this paper) to five
+agents across three vendors and the full directive gradient. We deliberately set aside
 the \emph{enforcement layer}---behavioral bot-management that distinguishes
 automated from human traffic via traffic patterns and biometric/fingerprint
 signals \citep{iliou2021bots}---as orthogonal future work for the adversarial
